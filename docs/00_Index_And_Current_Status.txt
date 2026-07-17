@@ -169,11 +169,14 @@ CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic exists
 but is not automatically activated while the legacy controls remain live.
 Monster Power semantic Restriction definitions now persist in the nullable
 relational Power.restrictionJson field; existing Monster Powers default to no
-Restriction. The shared editor is now live for ordinary Player Powers and the
-Signature Move. Partial drafts remain transient and block save when incomplete
-or invalid; valid definitions persist through CharacterBuilderData.
-Campaign-Custom and unsupported definitions remain read-only and preservable.
-Roleplay integration and legacy cutover, Monster Power editor integration, and
+Restriction. The shared editor is now live for ordinary Player Powers, the
+Signature Move, and editable campaign Monster Powers. Monster partial drafts
+remain transient; incomplete, invalid, malformed, missing, or cross-campaign
+drafts block save. Valid Player definitions persist through CharacterBuilderData
+and valid Monster definitions through Power.restrictionJson. Core/read-only
+Monster Powers use read-only Restriction presentation. Campaign-Custom and safe
+unsupported definitions remain read-only and preservable, and ordinary Monster
+descriptors remain separate. Roleplay integration and legacy cutover, and
 Campaign-Custom authoring remain deferred. No approval, GD auto-approval
 provenance, campaign-custom value database layer, governance, runtime evaluator,
 Combat Lab, economics, or simulation implementation is claimed. Phase 2 as a
@@ -425,12 +428,13 @@ law until the owning active doc is updated with an explicit decision.
   CONTENT, RUNTIME, AND NUMERIC CALIBRATION OPEN; SPARK OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and
   docs/03_Builders_And_Implementation_Roadmap.txt.
-  Note: Character Creator is still missing Spark and permanent shared
-  Restriction support. The three authoring modes, structured grammar and
+  Note: Character Creator is still missing Spark and Roleplay shared Restriction
+  cutover. Player Power, Signature Move, and editable Monster Power authoring are
+  live. The three authoring modes, structured grammar and
   registry direction, V1 subjects and condition families, evaluation classes,
   governance separation, fingerprints, and consumer-specific boundaries are
-  locked. Exact standard template inventory, persistence shape, UI, runtime and
-  Combat Lab integration, specific content, economic classifications, and
+  locked. Exact standard template inventory, remaining UI, governance, runtime
+  and Combat Lab integration, specific content, economic classifications, and
   numeric credits remain later work. The three governance questions listed in
   the status section above remain explicitly unresolved.
 - Transformation/Summoning/object/structure/machine/mount builder scopes.

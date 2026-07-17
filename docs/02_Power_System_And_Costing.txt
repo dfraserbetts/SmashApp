@@ -879,12 +879,15 @@ explicitly supplied Roleplay definitions, now round-trip through
 CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic exists
 but is not automatically activated while legacy controls remain live. Monster
 Power semantic Restriction relational persistence now exists. The shared editor
-is live for ordinary Player Powers and the Signature Move. Partial drafts remain
-transient and block save when incomplete or invalid; valid definitions persist
-through CharacterBuilderData. Campaign-Custom and unsupported definitions remain
-read-only and preservable. Roleplay integration and legacy cutover, Monster
-Power editor integration, Campaign-Custom authoring, approval, GD auto-approval
-provenance, a campaign-custom value database layer, governance, runtime
+is live for ordinary Player Powers, the Signature Move, and editable campaign
+Monster Powers. Monster partial drafts remain transient; incomplete, invalid,
+malformed, missing, or cross-campaign drafts block save. Valid Player definitions
+persist through CharacterBuilderData and valid Monster definitions through
+Power.restrictionJson. Core/read-only Monster Powers use read-only Restriction
+presentation. Campaign-Custom and safe unsupported definitions remain read-only
+and preservable, and ordinary Monster descriptors remain separate. Roleplay
+integration and legacy cutover, Campaign-Custom authoring, approval, GD auto-
+approval provenance, a campaign-custom value database layer, governance, runtime
 evaluation, Combat Lab integration, economics, and simulation remain absent;
 Phase 2 remains incomplete and Phase 3 is not complete.
 A future

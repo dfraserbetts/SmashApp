@@ -100,11 +100,13 @@ These items are captured roadmap/backlog, not locked rule law.
 Character Creator:
 
 - Character Creator is still missing Spark support.
-- Character Creator is still missing Power Restrictions support.
+- Player Power and Signature Move Restriction authoring is live; Roleplay shared
+  Restriction integration and legacy cutover remain absent.
 - The shared Restriction authoring model is locked for Player Powers, Roleplay
   Abilities, and GD-authored Monster Powers, and its pure Phase 1 domain
-  foundation is implemented. Persistence, governance, UI, and optional
-  evaluation implementation remain absent. Spark
+  foundation, Player persistence/editor integration, and Monster
+  persistence/editor integration are implemented. Governance, Roleplay UI, and
+  optional evaluation implementation remain absent. Spark
   scope remains OPEN / NEEDS ARCHITECT DECISION, and Restriction economics,
   specific content, scenario assumptions, and preserved governance questions
   remain later work.
@@ -818,7 +820,8 @@ Monster relational persistence implemented; atomic legacy cutover remains):
   core/read-only-to-campaign-copy behaviour.
 
 Phase 3 - Standard Structured and Custom Narrative UI (Phase 3A shared
-foundation implemented; live consumer integration deferred):
+foundation plus Player Power, Signature Move, and editable Monster Power live
+integration implemented; Roleplay integration deferred):
 
 - build the dependent Subject + Condition + Operator + Value editor from the
   shared registry rather than a finished-sentence mega-dropdown;
@@ -883,15 +886,18 @@ logic exists but is not automatically activated while the legacy controls remain
 live. Monster Powers persist as relational Prisma Power records and share the
 common Power type; semantic Restriction definitions now round-trip through the
 nullable Power.restrictionJson field, and existing rows default to no
-Restriction. The shared editor is live for ordinary Player Powers and the
-Signature Move. Partial drafts remain transient and block save when incomplete
-or invalid; valid definitions persist through CharacterBuilderData.
-Campaign-Custom and unsupported definitions remain read-only and preservable.
-Roleplay integration, legacy cutover, and Monster Power editor integration
-remain absent, so Phase 3 is not complete. Campaign-Custom authoring, approval,
-GD auto-approval provenance, a campaign-custom value database layer, governance,
-runtime evaluation, Combat Lab integration, economics, and simulation remain
-absent. Phase 2 as a whole is not complete.
+Restriction. The shared editor is live for ordinary Player Powers, the Signature
+Move, and editable campaign Monster Powers. Monster partial drafts remain
+transient; incomplete, invalid, malformed, missing, or cross-campaign drafts
+block save. Valid Player definitions persist through CharacterBuilderData and
+valid Monster definitions through Power.restrictionJson. Core/read-only Monster
+Powers use read-only Restriction presentation. Campaign-Custom and safe
+unsupported definitions remain read-only and preservable, and ordinary Monster
+descriptors remain separate. Roleplay integration and legacy cutover remain
+absent, so Phase 3 is not complete. Campaign-Custom authoring, approval, GD auto-
+approval provenance, a campaign-custom value database layer, governance, runtime
+evaluation, Combat Lab integration, economics, and simulation remain absent.
+Phase 2 as a whole is not complete.
 
 The current Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`,
 and `restrictionText` fields and UI are migration inputs only. CharacterPower

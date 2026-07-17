@@ -1006,11 +1006,14 @@ of practical availability, reliable enabling, enforcement, and table preference
 rather than automatic economic treatment.
 
 Restrictions may be drafted and manually reviewed. The shared editor is live for
-ordinary Player Powers and the Signature Move. Partial drafts remain transient
-and block save when incomplete or invalid; valid definitions persist through
-CharacterBuilderData. Campaign-Custom and unsupported definitions remain
-read-only and preservable. Roleplay integration and legacy cutover, Monster Power
-editor integration, Campaign-Custom authoring, and governance remain deferred.
+ordinary Player Powers, the Signature Move, and editable campaign Monster Powers.
+Monster partial drafts remain transient; incomplete, invalid, malformed, missing,
+or cross-campaign drafts block save. Valid Player definitions persist through
+CharacterBuilderData and valid Monster definitions through Power.restrictionJson.
+Core/read-only Monster Powers use read-only Restriction presentation. Campaign-
+Custom and safe unsupported definitions remain read-only and preservable, and
+ordinary Monster descriptors remain separate. Roleplay integration and legacy
+cutover, Campaign-Custom authoring, and governance remain deferred.
 Manual prose, a selected label, or a stored percentage cannot approve or price
 itself. Complete standard-template coverage, remaining consumer UI, specific
 pregen Restrictions, scenario assumptions, numeric classifications and values,

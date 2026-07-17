@@ -493,12 +493,15 @@ Current implementation truth:
 - Monster Power semantic Restriction definitions round-trip through the nullable
   relational Power.restrictionJson field; existing Monster Powers default to no
   Restriction.
-- The shared editor is live for ordinary Player Powers and the Signature Move.
-  Partial drafts remain transient and block save when incomplete or invalid;
-  valid definitions persist through CharacterBuilderData. Campaign-Custom and
+- The shared editor is live for ordinary Player Powers, the Signature Move, and
+  editable campaign Monster Powers. Monster partial drafts remain transient;
+  incomplete, invalid, malformed, missing, or cross-campaign drafts block save.
+  Valid Player definitions persist through CharacterBuilderData and valid
+  Monster definitions through Power.restrictionJson. Campaign-Custom and safe
   unsupported definitions remain read-only and preservable.
-- Roleplay integration, legacy cutover, and Monster Power editor integration
-  remain absent. Phase 3 is not complete.
+- Core/read-only Monster Powers use read-only Restriction presentation, and
+  ordinary Monster descriptors remain separate. Roleplay integration and legacy
+  cutover remain absent. Phase 3 is not complete.
 - Campaign-Custom authoring, approval, GD auto-approval provenance, a
   campaign-custom value database layer, governance, runtime evaluation, Combat
   Lab integration, economics, and simulation remain absent. Phase 2 as a whole
