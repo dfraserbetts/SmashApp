@@ -539,6 +539,7 @@ model Campaign {
   characterBackpackItems CampaignCharacterBackpackItem[]
   ItemTemplate         ItemTemplate[]
   monsters             Monster[]
+  playerRestrictionGovernance PlayerRestrictionGovernance[]
 
   @@index([ownerUserId])
   @@map("Campaign")
@@ -598,11 +599,63 @@ model CampaignCharacter {
   updatedAt        DateTime  @default(now()) @updatedAt
   campaign         Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   backpackItems    CampaignCharacterBackpackItem[]
+  restrictionGovernance PlayerRestrictionGovernance[]
 
   @@index([campaignId])
   @@index([assignedUserId])
   @@index([archivedAt])
   @@map("CampaignCharacter")
+}
+
+model PlayerRestrictionGovernance {
+  id                      String                         @id @default(dbgenerated("(gen_random_uuid())::text"))
+  campaignId              String
+  characterId             String
+  consumerType            PlayerRestrictionConsumerType
+  consumerId              String
+  lifecycle               PlayerRestrictionLifecycle    @default(DRAFT)
+  submissionRevision      Int                            @default(0)
+  submittedFingerprint    String?                        @db.Text
+  submittedDefinitionJson Json?
+  submittedByUserId       String?
+  submittedAt             DateTime?
+  approvedFingerprint     String?                        @db.Text
+  selectedTier            PlayerRestrictionTier?
+  reviewedByUserId        String?
+  reviewedAt              DateTime?
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @default(now()) @updatedAt
+  campaign                Campaign                       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  character               CampaignCharacter              @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  events                  PlayerRestrictionReviewEvent[]
+
+  @@unique([characterId, consumerType, consumerId])
+  @@index([campaignId, lifecycle, submittedAt])
+  @@index([characterId])
+  @@index([submittedByUserId])
+  @@index([reviewedByUserId])
+  @@map("PlayerRestrictionGovernance")
+}
+
+model PlayerRestrictionReviewEvent {
+  id                     String                         @id @default(dbgenerated("(gen_random_uuid())::text"))
+  governanceId           String
+  action                 PlayerRestrictionReviewAction
+  fromLifecycle          PlayerRestrictionLifecycle
+  toLifecycle            PlayerRestrictionLifecycle
+  submissionRevision     Int
+  semanticFingerprint    String                         @db.Text
+  semanticDefinitionJson Json
+  selectedTier           PlayerRestrictionTier?
+  actorUserId            String
+  notes                  String?                        @db.Text
+  createdAt              DateTime                       @default(now())
+  governance             PlayerRestrictionGovernance    @relation(fields: [governanceId], references: [id], onDelete: Cascade)
+
+  @@index([governanceId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+  @@map("PlayerRestrictionReviewEvent")
 }
 
 model CampaignPartyInventoryItem {
@@ -1390,6 +1443,34 @@ enum CampaignRole {
   PLAYER
 }
 
+enum PlayerRestrictionConsumerType {
+  PLAYER_POWER
+  SIGNATURE_MOVE
+  ROLEPLAY_ABILITY
+}
+
+enum PlayerRestrictionLifecycle {
+  DRAFT
+  PENDING_GD_APPROVAL
+  APPROVED
+  CHANGES_REQUESTED
+  APPROVAL_STALE
+}
+
+enum PlayerRestrictionTier {
+  MATERIAL_LIMITATION
+  SUBSTANTIAL_LIMITATION
+  NARROW_AVAILABILITY
+  OATH_LIMITATION
+}
+
+enum PlayerRestrictionReviewAction {
+  SUBMITTED
+  APPROVED
+  CHANGES_REQUESTED
+  APPROVAL_STALE
+}
+
 enum PlayerTraitClassification {
   POSITIVE
   NEGATIVE
@@ -1439,4 +1520,3 @@ enum ForgeCostCategory {
   WardingOptions
   WeaponAttributes
 }
-
