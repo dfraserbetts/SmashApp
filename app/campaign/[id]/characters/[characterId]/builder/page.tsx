@@ -4,7 +4,9 @@ import { FormEvent, type CSSProperties, useEffect, useMemo, useState } from "rea
 import { useParams, useRouter } from "next/navigation";
 
 import { CampaignNav } from "@/app/components/CampaignNav";
+import { LegacyRoleplayRestrictionReview } from "@/app/components/restrictions/LegacyRoleplayRestrictionReview";
 import { RestrictionEditor } from "@/app/components/restrictions/RestrictionEditor";
+import { RestrictionReadOnly } from "@/app/components/restrictions/RestrictionReadOnly";
 import {
   CHARACTER_SHEET_THEME_LABELS,
   CharacterSheetPreview,
@@ -111,6 +113,17 @@ import {
   type PlayerPowerRestrictionDraftMap,
 } from "@/lib/restrictions/playerPowerEditorIntegration";
 import {
+  getRoleplayAbilityRestrictionSummaryLabel,
+  initializeRoleplayAbilityRestrictionStates,
+  materializeRoleplayAbilityRestrictionStates,
+  reconcileRoleplayAbilityRestrictionStates,
+  rehydrateRoleplayAbilityRestrictionStates,
+  replaceLegacyRoleplayRestrictionReview,
+  resolveRoleplayAbilityRestrictionState,
+  type RoleplayAbilityRestrictionEditorState,
+  type RoleplayAbilityRestrictionStateMap,
+} from "@/lib/restrictions/roleplayAbilityEditorIntegration";
+import {
   ROLEPLAY_DICE_COUNT_OPTIONS,
   ROLEPLAY_INTENTION_OPTIONS,
   ROLEPLAY_METHOD_CUSTOM_REVIEW,
@@ -118,8 +131,6 @@ import {
   ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
   ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
   ROLEPLAY_OUTCOME_LANE_OPTIONS,
-  ROLEPLAY_RESTRICTION_BAND_OPTIONS,
-  ROLEPLAY_RESTRICTION_TYPE_OPTIONS,
   ROLEPLAY_SCENE_IMPACT_OPTIONS,
   ROLEPLAY_SCOPE_OPTIONS,
   createDefaultRoleplayAbility,
@@ -1273,6 +1284,9 @@ export default function CharacterBuilderPage() {
   const [pendingHandEquipItemId, setPendingHandEquipItemId] = useState("");
   const [collapsedPowerKeys, setCollapsedPowerKeys] = useState<Record<string, boolean>>({});
   const [restrictionDrafts, setRestrictionDrafts] = useState<PlayerPowerRestrictionDraftMap>({});
+  const [roleplayRestrictionStates, setRoleplayRestrictionStates] = useState<
+    RoleplayAbilityRestrictionStateMap
+  >({});
   const [modifierConversionDrafts, setModifierConversionDrafts] = useState<
     Record<string, ModifierConversionDraft>
   >({});
@@ -1333,6 +1347,26 @@ export default function CharacterBuilderPage() {
       : restrictionMaterialization.issues.map((issue) => issue.message),
     [restrictionMaterialization],
   );
+  const roleplayRestrictionMaterialization = useMemo(
+    () => restrictionMaterialization.ok
+      ? materializeRoleplayAbilityRestrictionStates(
+          restrictionMaterialization.builderData,
+          roleplayRestrictionStates,
+          campaignId,
+        )
+      : null,
+    [campaignId, restrictionMaterialization, roleplayRestrictionStates],
+  );
+  const roleplayRestrictionValidationErrors = useMemo(
+    () => !roleplayRestrictionMaterialization || roleplayRestrictionMaterialization.ok
+      ? []
+      : roleplayRestrictionMaterialization.issues.map((issue) => issue.message),
+    [roleplayRestrictionMaterialization],
+  );
+  const finalMaterializedBuilderData =
+    roleplayRestrictionMaterialization?.ok
+      ? roleplayRestrictionMaterialization.builderData
+      : null;
   const selectedBackpackItem = useMemo(
     () => backpackItems.find((item) => item.id === selectedBackpackItemId) ?? null,
     [backpackItems, selectedBackpackItemId],
@@ -1484,8 +1518,9 @@ export default function CharacterBuilderPage() {
       ...powerValidationErrors,
       ...signatureMoveValidationErrors,
       ...restrictionValidationErrors,
+      ...roleplayRestrictionValidationErrors,
     ],
-    [builderValidationErrors, powerValidationErrors, restrictionValidationErrors, signatureMoveValidationErrors],
+    [builderValidationErrors, powerValidationErrors, restrictionValidationErrors, roleplayRestrictionValidationErrors, signatureMoveValidationErrors],
   );
   const canSave =
     canEdit &&
@@ -1536,6 +1571,9 @@ export default function CharacterBuilderPage() {
       setDraft(loadedDraft);
       setRestrictionDrafts(
         initializePlayerPowerRestrictionDrafts(loadedDraft.builderData),
+      );
+      setRoleplayRestrictionStates(
+        initializeRoleplayAbilityRestrictionStates(loadedDraft.builderData),
       );
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load builder.");
@@ -1631,12 +1669,17 @@ export default function CharacterBuilderPage() {
   }
 
   function updateRoleplayAbilities(roleplayAbilities: RoleplayAbility[]) {
+    const nextRoleplayAbilities = roleplayAbilities.map((ability, index) => ({
+      ...ability,
+      sortOrder: index,
+    }));
     updateBuilderData({
-      roleplayAbilities: roleplayAbilities.map((ability, index) => ({
-        ...ability,
-        sortOrder: index,
-      })),
+      roleplayAbilities: nextRoleplayAbilities,
     });
+    setRoleplayRestrictionStates((current) => reconcileRoleplayAbilityRestrictionStates(
+      current,
+      { ...builderData, roleplayAbilities: nextRoleplayAbilities },
+    ));
   }
 
   function addRoleplayAbility() {
@@ -1692,6 +1735,18 @@ export default function CharacterBuilderPage() {
         [collapseKey]: !collapsed,
       };
     });
+  }
+
+  function updateRoleplayRestrictionState(
+    ability: RoleplayAbility,
+    nextState: RoleplayAbilityRestrictionEditorState,
+  ) {
+    const key = ability.id.trim();
+    if (!key) {
+      setError("This Roleplay Ability needs a stable identity before its Restriction can be edited.");
+      return;
+    }
+    setRoleplayRestrictionStates((current) => ({ ...current, [key]: nextState }));
   }
 
   function updateSignatureMove(power: CharacterPower | null) {
@@ -3826,7 +3881,7 @@ export default function CharacterBuilderPage() {
     if (blockingSaveErrors.length > 0) {
       throw new Error(`Resolve blocking Character Builder validation errors before giving items: ${blockingSaveErrors.join(" ")}`);
     }
-    if (!restrictionMaterialization.ok) {
+    if (!finalMaterializedBuilderData) {
       throw new Error("Restriction drafts could not be materialized for equipment sync.");
     }
 
@@ -3841,7 +3896,7 @@ export default function CharacterBuilderPage() {
         race: draft.race,
         description: draft.description,
         level: Number(draft.level),
-        builderData: restrictionMaterialization.builderData,
+        builderData: finalMaterializedBuilderData,
       }),
     });
       const data = (await res.json().catch(() => ({}))) as {
@@ -3872,6 +3927,9 @@ export default function CharacterBuilderPage() {
     const savedDraft = makeDraft(savedCharacter);
     setDraft(savedDraft);
     setRestrictionDrafts(rehydratePlayerPowerRestrictionDrafts(savedDraft.builderData));
+    setRoleplayRestrictionStates(
+      rehydrateRoleplayAbilityRestrictionStates(savedDraft.builderData),
+    );
   }
 
   async function handleBackpackTransfer(event: FormEvent<HTMLFormElement>) {
@@ -3927,7 +3985,7 @@ export default function CharacterBuilderPage() {
       setError(`Resolve blocking Character Builder validation errors before saving: ${blockingSaveErrors.join(" ")}`);
       return;
     }
-    if (!restrictionMaterialization.ok) {
+    if (!finalMaterializedBuilderData) {
       setError("Restriction drafts could not be materialized for save.");
       return;
     }
@@ -3947,7 +4005,7 @@ export default function CharacterBuilderPage() {
           race: draft.race,
           description: draft.description,
           level: Number(draft.level),
-          builderData: restrictionMaterialization.builderData,
+          builderData: finalMaterializedBuilderData,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -3977,6 +4035,9 @@ export default function CharacterBuilderPage() {
       const savedDraft = makeDraft(savedCharacter);
       setDraft(savedDraft);
       setRestrictionDrafts(rehydratePlayerPowerRestrictionDrafts(savedDraft.builderData));
+      setRoleplayRestrictionStates(
+        rehydrateRoleplayAbilityRestrictionStates(savedDraft.builderData),
+      );
       setMessage("Character details saved.");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save character.");
@@ -5043,36 +5104,50 @@ export default function CharacterBuilderPage() {
                 const abilityCollapsed =
                   collapsedRoleplayAbilityKeys[abilityCollapseKey] ?? true;
                 const abilityBodyId = `roleplay-ability-body-${index}`;
+                const roleplayRestrictionState = roleplayRestrictionStates[ability.id];
+                const roleplayRestrictionSummary =
+                  getRoleplayAbilityRestrictionSummaryLabel(roleplayRestrictionState);
+                const roleplayRestrictionResolution = roleplayRestrictionState
+                  ? resolveRoleplayAbilityRestrictionState(roleplayRestrictionState)
+                  : null;
                 return (
                   <article
                     key={ability.id}
                     className="rounded-lg border border-zinc-800 bg-black p-3"
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <button
-                        type="button"
-                        onClick={() => toggleRoleplayAbilityCollapsed(abilityCollapseKey)}
-                        className="min-w-0 flex-1 rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-left hover:bg-zinc-900/40"
-                        aria-expanded={!abilityCollapsed}
-                        aria-controls={abilityBodyId}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <h3 className="min-w-0 truncate font-semibold text-zinc-100">
-                            <span className="mr-2 text-zinc-400" aria-hidden="true">
-                              {abilityCollapsed ? ">" : "v"}
-                            </span>
-                          {ability.name.trim() || `Roleplay Ability ${index + 1}`}
-                          </h3>
-                          {abilityCollapsed ? (
-                            <span className="shrink-0 text-[11px] text-zinc-500">
-                              {methodName}
-                              {" / "}
-                              {outcomeContractName}
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-1 text-xs text-zinc-500">Ability {index + 1}</p>
-                      </button>
+                      <div className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleRoleplayAbilityCollapsed(abilityCollapseKey)}
+                          className="w-full rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-left hover:bg-zinc-900/40"
+                          aria-expanded={!abilityCollapsed}
+                          aria-controls={abilityBodyId}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <h3 className="min-w-0 truncate font-semibold text-zinc-100">
+                              <span className="mr-2 text-zinc-400" aria-hidden="true">
+                                {abilityCollapsed ? ">" : "v"}
+                              </span>
+                            {ability.name.trim() || `Roleplay Ability ${index + 1}`}
+                            </h3>
+                            {abilityCollapsed ? (
+                              <span className="shrink-0 text-[11px] text-zinc-500">
+                                {methodName}
+                                {" / "}
+                                {outcomeContractName}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-xs text-zinc-500">Ability {index + 1}</p>
+                        </button>
+                        <p
+                          className="mt-1 px-3 text-[11px] text-zinc-500"
+                          data-roleplay-restriction-summary="true"
+                        >
+                          Restriction: {roleplayRestrictionSummary}
+                        </p>
+                      </div>
                       <button
                         type="button"
                         onClick={() => removeRoleplayAbility(index)}
@@ -5503,105 +5578,6 @@ export default function CharacterBuilderPage() {
                       </p>
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      <label>
-                        <span className="text-xs text-zinc-400">
-                          Additional Restriction Type
-                        </span>
-                        <select
-                          value={ability.restrictionType}
-                          onChange={(event) => {
-                            const restrictionType = event.target
-                              .value as RoleplayAbility["restrictionType"];
-                            updateRoleplayAbility(index, {
-                              restrictionType,
-                              ...(restrictionType === "NONE"
-                                ? { restrictionBand: "NONE_COSMETIC" as const }
-                                : {}),
-                            });
-                          }}
-                          disabled={!canEdit || saving}
-                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                        >
-                          {ROLEPLAY_RESTRICTION_TYPE_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      {ability.restrictionType !== "NONE" ? (
-                        <label>
-                          <span className="text-xs text-zinc-400">Restriction Band</span>
-                          <select
-                            value={ability.restrictionBand}
-                            onChange={(event) =>
-                              updateRoleplayAbility(index, {
-                                restrictionBand:
-                                  event.target.value as RoleplayAbility["restrictionBand"],
-                              })
-                            }
-                            disabled={!canEdit || saving}
-                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                          >
-                            {ROLEPLAY_RESTRICTION_BAND_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      ) : null}
-                    </div>
-                    <p className="text-xs text-zinc-600">
-                      An Additional Restriction must narrow the Ability beyond the Outcome
-                      Contract&apos;s built-in limits. Repeating the contract&apos;s normal
-                      applicability earns no discount.
-                    </p>
-
-                    {ability.restrictionType !== "NONE" ? (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {ability.restrictionType === "TARGET_ELIGIBILITY" ? (
-                          <label>
-                            <span className="text-xs text-zinc-400">
-                              Restricted target phrase
-                            </span>
-                            <input
-                              type="text"
-                              value={ability.restrictionTag}
-                              onChange={(event) =>
-                                updateRoleplayAbility(index, {
-                                  restrictionTag: event.target.value,
-                                })
-                              }
-                              disabled={!canEdit || saving}
-                              placeholder="one Agent of Morgoth"
-                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
-                            />
-                            <span className="mt-1 block text-xs text-zinc-600">
-                              Write the exact phrase used after &ldquo;Choose&rdquo;, such as
-                              &ldquo;one Agent of Morgoth&rdquo; or &ldquo;Frodo&rdquo;.
-                            </span>
-                          </label>
-                        ) : null}
-                        <label>
-                          <span className="text-xs text-zinc-400">Restriction Text</span>
-                          <textarea
-                            value={ability.restrictionText}
-                            onChange={(event) =>
-                              updateRoleplayAbility(index, {
-                                restrictionText: event.target.value,
-                              })
-                            }
-                            disabled={!canEdit || saving}
-                            rows={2}
-                            placeholder="This ability can only affect Agents of Morgoth."
-                            className="mt-1 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
-                          />
-                        </label>
-                      </div>
-                    ) : null}
-
                     <section className="rounded-lg border border-cyan-900/70 bg-cyan-950/20 p-3">
                       <h4 className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
                         Generated Descriptor
@@ -5610,6 +5586,57 @@ export default function CharacterBuilderPage() {
                         {renderRoleplayAbilityDescriptor(ability)}
                       </p>
                     </section>
+
+                    <div
+                      className="space-y-2"
+                      data-testid="roleplay-ability-whole-restriction-editor"
+                    >
+                      <p className="text-xs text-zinc-400">
+                        This Restriction applies to the complete Ability.
+                      </p>
+                      {roleplayRestrictionState?.kind === "LEGACY_REVIEW_REQUIRED" ? (
+                        <LegacyRoleplayRestrictionReview
+                          legacySource={roleplayRestrictionState.legacySource}
+                          issues={roleplayRestrictionState.issues}
+                          editable={canEdit}
+                          disabled={saving}
+                          onReplace={(choice) => updateRoleplayRestrictionState(
+                            ability,
+                            replaceLegacyRoleplayRestrictionReview(
+                              roleplayRestrictionState,
+                              choice,
+                            ),
+                          )}
+                        />
+                      ) : roleplayRestrictionState?.kind === "EDITOR" ? (
+                        canEdit ? (
+                          <RestrictionEditor
+                            draft={roleplayRestrictionState.draft}
+                            onDraftChange={(nextDraft) => updateRoleplayRestrictionState(
+                              ability,
+                              { kind: "EDITOR", draft: nextDraft },
+                            )}
+                            consumerNoun="Ability"
+                            disabled={!canEdit || saving}
+                            idPrefix={`roleplay-ability-restriction-${ability.id}`}
+                            onConfirmReplace={() => window.confirm(
+                              `Replace the existing Restriction on ${ability.name.trim() || `Roleplay Ability ${index + 1}`}? The existing definition will be replaced when the character is saved.`,
+                            )}
+                          />
+                        ) : (
+                          <RestrictionReadOnly
+                            definition={roleplayRestrictionResolution?.definition ?? null}
+                            consumerNoun="Ability"
+                            disabled
+                            idPrefix={`roleplay-ability-restriction-read-only-${ability.id}`}
+                          />
+                        )
+                      ) : (
+                        <p className="rounded border border-red-500/40 bg-red-950/30 p-3 text-sm text-red-200" role="alert">
+                          This Roleplay Ability&apos;s Restriction state is missing. Reload before saving.
+                        </p>
+                      )}
+                    </div>
 
                     {warnings.length > 0 ? (
                       <ul className="list-disc space-y-1 rounded-lg border border-amber-900/70 bg-amber-950/20 p-3 pl-8 text-sm text-amber-200">

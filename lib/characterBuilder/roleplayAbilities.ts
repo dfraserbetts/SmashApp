@@ -1,11 +1,9 @@
 import type { AbilityRestrictionDefinitionV1, RestrictionIssue } from "@/lib/restrictions";
 import {
   diagnoseRoleplayRestrictionTransition,
-  normalizePersistedRestriction,
+  migrateLegacyRoleplayRestriction,
 } from "@/lib/restrictions/persistence";
 import {
-  ROLEPLAY_RESTRICTION_BAND_OPTIONS,
-  ROLEPLAY_RESTRICTION_TYPE_OPTIONS,
   type RoleplayRestrictionBand,
   type RoleplayRestrictionType,
 } from "@/lib/characterBuilder/legacyRoleplayRestrictions";
@@ -2108,6 +2106,12 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
     !/^one\s+/i.test(storedRestrictionTag)
       ? `one ${storedRestrictionTag}`
       : storedRestrictionTag;
+  const restrictionMigration = migrateLegacyRoleplayRestriction({
+    ...record,
+    restrictionTag,
+  });
+  const legacyRestrictionResolved =
+    restrictionMigration.definition !== null || restrictionMigration.migrationApplied;
 
   return reconcileRoleplayAbilityAuthoring({
     id: readString(record.id, 120) || `roleplay-ability-${sortOrder + 1}`,
@@ -2127,19 +2131,19 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
     customOutcomeLane,
     customOutcomeRequest,
     counter: record.counter === true,
-    restriction: normalizePersistedRestriction(record.restriction).definition,
-    restrictionType: readOption(
-      record.restrictionType,
-      ROLEPLAY_RESTRICTION_TYPE_OPTIONS,
-      "NONE",
-    ),
-    restrictionBand: readOption(
-      record.restrictionBand,
-      ROLEPLAY_RESTRICTION_BAND_OPTIONS,
-      "NONE_COSMETIC",
-    ),
-    restrictionTag,
-    restrictionText: readString(record.restrictionText, 1000),
+    restriction: restrictionMigration.definition,
+    restrictionType: legacyRestrictionResolved
+      ? "NONE"
+      : restrictionMigration.legacySource.restrictionType,
+    restrictionBand: legacyRestrictionResolved
+      ? "NONE_COSMETIC"
+      : restrictionMigration.legacySource.restrictionBand,
+    restrictionTag: legacyRestrictionResolved
+      ? ""
+      : restrictionMigration.legacySource.restrictionTag,
+    restrictionText: legacyRestrictionResolved
+      ? ""
+      : restrictionMigration.legacySource.restrictionText,
   });
 }
 
@@ -2176,11 +2180,7 @@ export function renderRoleplayAbilityDescriptor(ability: RoleplayAbility): strin
     return `Roll ${ability.diceCount} dice. On success, ${outcomeClause}`;
   }
 
-  const restrictedTargetPhrase =
-    ability.restrictionType === "TARGET_ELIGIBILITY"
-      ? ability.restrictionTag.trim()
-      : "";
-  const targetPhrase = restrictedTargetPhrase || defaultTargetPhrase(ability.scope);
+  const targetPhrase = defaultTargetPhrase(ability.scope);
   return `Choose ${targetPhrase} and ${rollClause}. On success, ${outcomeClause}`;
 }
 
@@ -2231,20 +2231,6 @@ export function getRoleplayAbilityWarnings(ability: RoleplayAbility): string[] {
   }
   if (contract && ability.counter && !resolved?.counterEligible) {
     warnings.push("The selected Outcome Contract does not permit Counter authoring.");
-  }
-  if (
-    ability.restrictionType === "TARGET_ELIGIBILITY" &&
-    !ability.restrictionTag.trim()
-  ) {
-    warnings.push("Target Eligibility requires a Restricted target phrase.");
-  }
-  if (
-    ability.restrictionType !== "NONE" &&
-    ability.restrictionBand === "NONE_COSMETIC"
-  ) {
-    warnings.push(
-      "This restriction uses the None / Cosmetic band and currently earns no meaningful restriction discount.",
-    );
   }
   return warnings;
 }

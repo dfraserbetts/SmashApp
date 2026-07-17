@@ -472,7 +472,10 @@ equal(resolveRestrictionEditorDraft(responseDrafts[pipelinePower.id!], { consume
 // Source composition assertions protect the bounded UI/API integration.
 const pageSource = readFileSync("app/campaign/[id]/characters/[characterId]/builder/page.tsx", "utf8");
 const routeSource = readFileSync("app/api/campaigns/[id]/characters/[characterId]/builder/route.ts", "utf8");
-equal((pageSource.match(/<RestrictionEditor/gu) ?? []).length, 1, "Power card renderer contains one shared RestrictionEditor path.");
+const roleplaySectionIndex = pageSource.indexOf('data-testid="character-builder-section-roleplay-abilities"');
+const playerPowerSource = pageSource.slice(0, roleplaySectionIndex);
+equal((playerPowerSource.match(/<RestrictionEditor/gu) ?? []).length, 1, "Power card renderer retains one shared RestrictionEditor path.");
+equal((pageSource.match(/<RestrictionEditor/gu) ?? []).length, 2, "Roleplay adds an independent shared RestrictionEditor consumer without duplicating the Power path.");
 ok(pageSource.includes('consumerNoun="Power"'), "Editor uses the Power consumer noun.");
 ok(pageSource.indexOf("character-power-whole-restriction-editor") < pageSource.indexOf("Primary Packet"), "Whole-Power editor is outside and before packet cards.");
 ok(pageSource.includes("powers: [signatureMoveDraft]") && pageSource.includes("powers: builderData.powers"), "Signature Move and ordinary Powers reuse the same card renderer.");
@@ -480,7 +483,7 @@ ok(pageSource.includes("character-power-collapsed-restriction-summary"), "Collap
 ok(pageSource.indexOf("character-power-collapsed-restriction-summary") > pageSource.indexOf("</button>"), "Collapsed summary is not nested inside the collapse-toggle button.");
 ok(pageSource.includes("summary.descriptorLines.map"), "Ordinary Power descriptor rendering remains separate and present.");
 ok(!pageSource.includes("descriptor={restriction"), "Ordinary descriptor is never passed into the Restriction editor.");
-ok(pageSource.indexOf("<RestrictionEditor") < pageSource.indexOf('data-testid="character-builder-section-roleplay-abilities"'), "Restriction editor is confined to the Power-card path before Roleplay UI.");
+ok(pageSource.indexOf("<RestrictionEditor") < roleplaySectionIndex, "Player Restriction editor remains in the Power-card path before Roleplay UI.");
 ok(routeSource.indexOf("validateRawPlayerPowerRestrictionWrite") < routeSource.indexOf("normalizeBuilderData(body.builderData)"), "Raw write guard runs before normalization.");
 ok(routeSource.includes("restrictionWriteIssue.code"), "API returns the stable Restriction issue code.");
 

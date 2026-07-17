@@ -25,6 +25,7 @@ import {
 } from "@/lib/characterBuilder/powers";
 import { getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError } from "@/lib/powers/authoringRules";
 import { validateRawPlayerPowerRestrictionWrite } from "@/lib/restrictions/playerPowerEditorIntegration";
+import { validateRawRoleplayAbilityRestrictionWrite } from "@/lib/restrictions/roleplayAbilityEditorIntegration";
 import {
   applyAutomaticExpectedTargetsToPower,
   applyAutomaticExpectedTargetsToPowers,
@@ -449,6 +450,19 @@ export async function PATCH(
         {
           error: restrictionWriteIssue.clientMessage,
           code: restrictionWriteIssue.code,
+        },
+        { status: 400 },
+      );
+    }
+    const roleplayRestrictionWriteIssue = validateRawRoleplayAbilityRestrictionWrite(
+      body.builderData,
+      campaignId,
+    );
+    if (roleplayRestrictionWriteIssue) {
+      return NextResponse.json(
+        {
+          error: roleplayRestrictionWriteIssue.clientMessage,
+          code: roleplayRestrictionWriteIssue.code,
         },
         { status: 400 },
       );

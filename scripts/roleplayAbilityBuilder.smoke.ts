@@ -91,7 +91,7 @@ assertEqual(
 );
 assertEqual(
   renderRoleplayAbilityDescriptor(youShallNotPass),
-  "Choose one Agent of Morgoth and roll 4 dice. On success, the target's current or next hostile action fails.",
+  "Choose one target and roll 4 dice. On success, the target's current or next hostile action fails.",
   "You Shall Not Pass descriptor mismatch.",
 );
 assert(
@@ -153,8 +153,21 @@ assertEqual(
 assertEqual(frodoHide.counter, false, "Hide contract should force Counter off.");
 assertEqual(
   renderRoleplayAbilityDescriptor(frodoHide),
-  "Choose Frodo and roll 3 dice. On success, the target becomes hidden from the immediate danger.",
+  "Choose one target and roll 3 dice. On success, the target becomes hidden from the immediate danger.",
   "Frodo Hide descriptor mismatch.",
+);
+assertEqual(
+  frodoHide.restriction?.customNarrativeText,
+  "This Ability may only target Frodo.",
+  "Legacy Target Eligibility should migrate to a separate semantic Restriction.",
+);
+assert(
+  !getRoleplayAbilityWarnings(frodoHide).some((warning) =>
+    warning.includes("Restriction Band")
+    || warning.includes("target phrase")
+    || warning.includes("discount"),
+  ),
+  "Legacy Restriction controls must not contribute ordinary Roleplay warnings.",
 );
 
 const unknownLegacyOutcomeText = "the crowd accepts the bearer as their lost queen";

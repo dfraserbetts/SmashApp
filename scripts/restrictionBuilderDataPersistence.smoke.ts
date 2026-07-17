@@ -195,7 +195,7 @@ equal(signature.cooldownReduction, 1, "Signature Move separate-pool-related cool
 equal(normalizeCharacterPower({ ...signatureSource, restriction: { bad: true } }, 0).restriction, null, "Malformed Signature Move Restriction must fall back to null.");
 equal(normalizeCharacterPower({ ...signatureSource, restriction: undefined }, 0).restriction, null, "Signature Move may have no Restriction.");
 
-// Roleplay explicit shared field and unchanged legacy behaviour.
+// Roleplay shared authority and active legacy cutover.
 const legacyRoleplay = {
   ...createDefaultRoleplayAbility(0),
   id: "roleplay-1",
@@ -209,16 +209,32 @@ const legacyRoleplay = {
 const legacyDescriptor = renderRoleplayAbilityDescriptor(normalizeRoleplayAbility(legacyRoleplay, 0));
 const roleplayWithShared = normalizeRoleplayAbility({ ...legacyRoleplay, restriction: customNarrative }, 0);
 deepEqual(roleplayWithShared.restriction, customNarrative, "Explicit Roleplay shared Restriction must round-trip.");
-equal(roleplayWithShared.restrictionType, "TARGET_ELIGIBILITY", "Legacy Roleplay type must remain preserved.");
-equal(roleplayWithShared.restrictionBand, "HARSH", "Legacy Roleplay band must remain preserved.");
-equal(roleplayWithShared.restrictionTag, "one Agent of Morgoth", "Legacy Roleplay tag must remain preserved.");
-equal(roleplayWithShared.restrictionText, "Preserved legacy note.", "Legacy Roleplay text must remain preserved.");
+equal(roleplayWithShared.restrictionType, "NONE", "Shared Roleplay authority must neutralize the legacy type.");
+equal(roleplayWithShared.restrictionBand, "NONE_COSMETIC", "Shared Roleplay authority must neutralize the legacy band.");
+equal(roleplayWithShared.restrictionTag, "", "Shared Roleplay authority must clear the legacy tag.");
+equal(roleplayWithShared.restrictionText, "", "Shared Roleplay authority must clear the legacy text.");
 equal(renderRoleplayAbilityDescriptor(roleplayWithShared), legacyDescriptor, "Shared persistence field must not change the ordinary descriptor.");
-check(legacyDescriptor.startsWith("Choose one Agent of Morgoth"), "Legacy target-phrase prototype behaviour must remain active.");
+check(legacyDescriptor.startsWith("Choose one target"), "Scope, not legacy Target Eligibility, must own ordinary target grammar.");
 check(hasCode(getRoleplayRestrictionTransitionIssues({ ...legacyRoleplay, restriction: customNarrative }), "LEGACY_AND_SHARED_RESTRICTION_PRESENT"), "Dual Roleplay representations need a diagnostic.");
 check(hasCode(diagnoseRoleplayRestrictionTransition({ ...legacyRoleplay, restriction: customNarrative }), "LEGACY_AND_SHARED_RESTRICTION_PRESENT"), "Shared transition diagnostic must be stable.");
 equal(normalizeRoleplayAbility({ ...legacyRoleplay, restriction: { bad: true } }, 0).restriction, null, "Malformed explicit Roleplay Restriction must fall back to null.");
-equal(normalizeRoleplayAbility(legacyRoleplay, 0).restriction, null, "Absent Roleplay shared Restriction canonicalizes to null without migration.");
+const migratedLegacyRoleplay = normalizeRoleplayAbility(legacyRoleplay, 0);
+equal(migratedLegacyRoleplay.restriction?.authoringMode, "CUSTOM_NARRATIVE", "Safe legacy Roleplay data migrates during normalization.");
+equal(migratedLegacyRoleplay.restriction?.customNarrativeText, "This Ability may only target one Agent of Morgoth.", "Safe Target Eligibility migration preserves its meaning.");
+equal(migratedLegacyRoleplay.restrictionType, "NONE", "Safe migration neutralizes the legacy type.");
+equal(migratedLegacyRoleplay.restrictionBand, "NONE_COSMETIC", "Safe migration neutralizes the legacy band.");
+equal(migratedLegacyRoleplay.restrictionTag, "", "Safe migration clears the legacy tag.");
+equal(migratedLegacyRoleplay.restrictionText, "", "Safe migration clears the legacy text.");
+const reviewOnlyRoleplay = normalizeRoleplayAbility({
+  ...legacyRoleplay,
+  restrictionType: "OATH_BEHAVIOUR",
+  restrictionText: "Keep the old oath wording for review.",
+}, 0);
+equal(reviewOnlyRoleplay.restriction, null, "Ambiguous legacy Roleplay data must not invent semantic meaning.");
+equal(reviewOnlyRoleplay.restrictionType, "OATH_BEHAVIOUR", "Ambiguous legacy type remains reviewable.");
+equal(reviewOnlyRoleplay.restrictionBand, "HARSH", "Ambiguous legacy band remains reviewable.");
+equal(reviewOnlyRoleplay.restrictionTag, "one Agent of Morgoth", "Ambiguous legacy tag remains reviewable.");
+equal(reviewOnlyRoleplay.restrictionText, "Keep the old oath wording for review.", "Ambiguous legacy text remains reviewable.");
 
 // Complete CharacterBuilderData JSON contract.
 const builderSource = {
@@ -241,7 +257,7 @@ deepEqual(
   "CharacterBuilderData must be stable after JSON save/load and renormalization.",
 );
 
-// Pure legacy migration contract; never invoked by live normalization above.
+// Pure legacy migration contract used by live Roleplay normalization and review state.
 const noneMigration = migrateLegacyRoleplayRestriction({
   restrictionType: "NONE",
   restrictionBand: "SEVERE_OATH",

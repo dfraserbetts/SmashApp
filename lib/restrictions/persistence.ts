@@ -125,11 +125,15 @@ export function diagnoseRoleplayRestrictionTransition(input: unknown): Restricti
     ? input as Record<string, unknown>
     : {};
   const legacy = normalizeLegacyRoleplayRestrictionSource(record);
-  return legacy.restrictionType !== "NONE" && record.restriction != null
+  const hasLegacyResidue = legacy.restrictionType !== "NONE"
+    || legacy.restrictionBand !== "NONE_COSMETIC"
+    || legacy.restrictionTag !== ""
+    || legacy.restrictionText !== "";
+  return hasLegacyResidue && record.restriction != null
     ? [{
         code: "LEGACY_AND_SHARED_RESTRICTION_PRESENT",
         severity: "warning",
-        message: "Legacy and shared Roleplay Restriction representations are both present; neither is selected as authoritative during the transition.",
+        message: "The shared Roleplay Restriction is authoritative; conflicting legacy fields are obsolete migration residue and must be cleared before writing.",
         path: "restriction",
       }]
     : [];
