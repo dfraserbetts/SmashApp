@@ -62,10 +62,11 @@ export class RestrictionGovernanceServiceError extends Error {
   }
 }
 
-type StoredGovernance = Prisma.PlayerRestrictionGovernanceGetPayload<{
+export type StoredPlayerRestrictionGovernance = Prisma.PlayerRestrictionGovernanceGetPayload<{
   include: { events: true };
 }>;
 
+type StoredGovernance = StoredPlayerRestrictionGovernance;
 type StoredGovernanceRow = Omit<StoredGovernance, "events">;
 
 function serviceError(
@@ -191,6 +192,25 @@ function readEntry(
     history: Object.freeze(stored ? normalizeHistory(stored) : []),
     diagnosticIssues: facts.issues,
   });
+}
+
+export function buildPersistedPlayerRestrictionGovernanceReadEntry(params: {
+  builderData: CharacterBuilderData;
+  campaignId: string;
+  stored: StoredPlayerRestrictionGovernance;
+}): PlayerRestrictionGovernanceReadEntry {
+  const entry = readEntry(params.builderData, params.campaignId, {
+    consumerType: params.stored.consumerType,
+    consumerId: params.stored.consumerId,
+  }, params.stored);
+  if (!entry) {
+    serviceError(
+      "GOVERNANCE_READ_FAILED",
+      "A persisted governance record could not be projected into the read model.",
+      500,
+    );
+  }
+  return entry;
 }
 
 function entrySortKey(entry: PlayerRestrictionGovernanceReadEntry): string {

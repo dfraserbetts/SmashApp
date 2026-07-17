@@ -11,6 +11,7 @@ type CampaignNavProps = {
 export function CampaignNav({ campaignId }: CampaignNavProps) {
   const [campaignName, setCampaignName] = useState<string | null>(null);
   const [canManageCampaign, setCanManageCampaign] = useState(false);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,15 +33,19 @@ export function CampaignNav({ campaignId }: CampaignNavProps) {
         if (!res.ok) {
           setCampaignName(null);
           setCanManageCampaign(false);
+          setPendingApprovalCount(null);
           return;
         }
 
+        const canManage = Boolean(data.access?.permissions?.canManageCampaign);
         setCampaignName(data.campaign?.name ?? null);
-        setCanManageCampaign(Boolean(data.access?.permissions?.canManageCampaign));
+        setCanManageCampaign(canManage);
+        if (!canManage) setPendingApprovalCount(null);
       } catch {
         if (cancelled) return;
         setCampaignName(null);
         setCanManageCampaign(false);
+        setPendingApprovalCount(null);
       }
     }
 
@@ -50,6 +55,39 @@ export function CampaignNav({ campaignId }: CampaignNavProps) {
       cancelled = true;
     };
   }, [campaignId]);
+
+  useEffect(() => {
+    if (!campaignId || !canManageCampaign) return;
+    let cancelled = false;
+
+    async function loadApprovalSummary() {
+      try {
+        const res = await fetch(
+          `/api/campaigns/${encodeURIComponent(campaignId)}/restriction-governance?summary=1`,
+          { cache: "no-store" },
+        );
+        const data = (await res.json().catch(() => ({}))) as {
+          counts?: { pending?: number };
+        };
+        if (cancelled) return;
+        if (!res.ok || !Number.isInteger(data.counts?.pending)) {
+          setPendingApprovalCount(null);
+          return;
+        }
+        setPendingApprovalCount(data.counts!.pending!);
+      } catch {
+        if (!cancelled) setPendingApprovalCount(null);
+      }
+    }
+
+    const handleQueueUpdated = () => void loadApprovalSummary();
+    void loadApprovalSummary();
+    window.addEventListener("restriction-governance-queue-updated", handleQueueUpdated);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("restriction-governance-queue-updated", handleQueueUpdated);
+    };
+  }, [campaignId, canManageCampaign]);
 
   return (
     <nav style={{ marginBottom: "1rem" }}>
@@ -65,6 +103,13 @@ export function CampaignNav({ campaignId }: CampaignNavProps) {
         <Link href={`/campaign/${campaignId}/characters`}>
           {canManageCampaign ? "Character Management" : "Character Builder"}
         </Link>
+        {canManageCampaign ? (
+          <Link href={`/campaign/${campaignId}/approvals`}>
+            {pendingApprovalCount !== null && pendingApprovalCount > 0
+              ? `Approvals (${pendingApprovalCount})`
+              : "Approvals"}
+          </Link>
+        ) : null}
         <Link href={`/campaign/${campaignId}/inventory`}>
           Party Inventory
         </Link>
