@@ -381,12 +381,16 @@ produces more consistent value than Origin Range; how often templates cross
 zones; whether all three Size bands have distinct table impact; and whether
 physical placement is quick and dispute-resistant.
 
-AoE Size is expected to be the heavier spatial cost driver because it can
-increase footprint, inherent reach, target opportunity, placement tolerance,
-chokepoint and multi-zone coverage, and pressure against spread formations.
-Origin Range grants placement freedom without enlarging the footprint. This is
-a non-numeric hypothesis to validate, not authority for costs, dimensions,
-target assumptions, or shape-specific values.
+The locked non-numeric pricing principle is that AoE Size is a substantially
+heavier spatial cost driver than Origin Range because Size can increase
+footprint, inherent reach, target opportunity, placement tolerance, chokepoint
+and multi-zone coverage, and pressure against spread formations. Origin Range
+grants placement freedom without enlarging the template. Validation determines
+how much heavier Size should be, whether weighting differs by shape, whether
+Large Cone or Line reduces the practical value of longer Origin Range, final
+numeric costs, template dimensions, and expected-target assumptions; it does
+not reopen the underlying Size-over-Range hierarchy. No numeric value,
+multiplier, formula, Size dimension, or shape-specific cost is locked here.
 
 Current exact-foot Combat Lab and calculator evidence remains valid only as
 historical/current-system evidence after the future model is implemented. Do
