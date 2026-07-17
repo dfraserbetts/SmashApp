@@ -879,7 +879,19 @@ Malformed semantic data and unresolved legacy-review data remain true save
 blockers. Direct semantic edits stale approval and suspend credit immediately.
 Approved credit counts only while fingerprint, approval, and economic resolution
 are current. This is final-sheet/table-use readiness policy, not combat-runtime
-Power-use blocking. No readiness Prisma field or UI exists yet.
+Power-use blocking. Phase 4C1 exposes this distinction in the Character Builder:
+aggregate normal-Power and Signature-Move pool overspend is readiness-only, while
+all existing structural, cost-resolution, tuning, semantic, legacy-review, and
+ordinary Character validation failures remain save-blocking. Readiness is
+derived and is not stored in Prisma.
+
+The Builder shows lifecycle status and immutable history and submits only after
+the complete draft saves and rehydrates through the authoritative PATCH path.
+Draft, Changes Requested, and Approval Stale content can be submitted or
+resubmitted from the saved stable consumer identity and current revision.
+Pending proposals remain immutable; a saved/submitted semantic mismatch is
+visible and cannot be resubmitted while Pending. No provisional or active credit
+exists, and an approved tier remains classification only.
 
 Valid unrestricted Player Power, Signature Move, and Roleplay content does not
 wait for Restriction approval and remains print-eligible subject to ordinary
@@ -993,13 +1005,17 @@ planner, authenticated server read/actions, optimistic revision conflicts,
 transactional immutable events, live-fingerprint approval guards, synthetic
 Draft reads, orphan preservation, safe-unsupported approval blocking, and the
 unresolved self-approval policy conflict. It activates no economics.
-Campaign-Custom authoring, Character Builder governance UI, Approval Panel,
-Monster GD auto-approval provenance, a campaign-custom value database layer,
-readiness storage/UI, active drawback tuning, credit application, print
-projection integration, runtime evaluation, Combat Lab integration, simulation,
-and Phase 6 surface polish and migration diagnostics remain absent. The Oath
-rate and exceptional combined cap remain open. The complete Restriction project
-is not production-complete.
+Phase 4C1 integrates Character Builder governance status/history and the save-
+before-submit workflow for Player Powers, Signature Moves, and Roleplay Abilities.
+It also permits otherwise valid gross-overspent drafts to persist and reports
+gross-budget and governance readiness as derived, non-persisted UI state.
+Campaign-Custom authoring, the campaign Approval Panel/pending queue, Monster GD
+auto-approval provenance, a campaign-custom value database layer, persistent
+readiness, active drawback tuning, credit application, print projection
+integration, runtime evaluation, Combat Lab integration, simulation, and Phase 6
+surface polish and migration diagnostics remain absent. Self-approval remains
+unresolved. The Oath rate and exceptional combined cap remain open. The complete
+Restriction project is not production-complete.
 A future
 runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
 exact enum names and implementation are separately authorized later work.

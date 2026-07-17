@@ -464,8 +464,9 @@ inspection against the locked Soldier attacks-to-defeat doctrine.
 
 Shared Restriction Authoring Implementation Handoff
 
-LOCKED AUTHORING AUTHORITY / PHASES 1-3, PHASE 4A2 PURE FOUNDATION, AND PHASE
-4B1 PLAYER GOVERNANCE PERSISTENCE FOUNDATION IMPLEMENTED. The primary
+LOCKED AUTHORING AUTHORITY / PHASES 1-3, PHASE 4A2 PURE FOUNDATION, PHASE 4B1
+PLAYER GOVERNANCE PERSISTENCE, PHASE 4B2 AUTHENTICATED LIFECYCLE SERVICES, AND
+PHASE 4C1 CHARACTER BUILDER INTEGRATION IMPLEMENTED. The primary
 shared model
 is owned by docs/02_Power_System_And_Costing.txt; commitment-time runtime law is
 owned by docs/01_Locked_Rules_And_Combat_Bible.txt; the mandatory seven-phase
@@ -525,9 +526,18 @@ Current implementation truth:
   Approval Stale then Submitted events. Safe unsupported content cannot be
   approved, and same-submitter review returns the production `UNRESOLVED` policy
   conflict without mutation.
-- Campaign-Custom authoring, governance UI, Approval Panel, Monster GD
-  auto-approval provenance, a campaign-custom value database layer,
-  readiness storage/UI, active drawback tuning/economics, Print Mode projection,
+- Phase 4C1 adds reusable Character Builder governance status/history for Player
+  Powers, the Signature Move, and Roleplay Abilities. Submit/resubmit first saves
+  and authoritatively rehydrates the complete draft, reloads governance, and uses
+  the saved stable identity and current revision. Draft, Changes Requested, and
+  Approval Stale actions are live; Pending remains immutable and submitted/live
+  mismatch is visible. Otherwise valid gross-overspent drafts can save, with
+  gross-budget and governance readiness derived rather than persisted. No
+  provisional or active credit applies, and approved tiers are classification
+  only.
+- Campaign-Custom authoring, the campaign Approval Panel and pending queue,
+  Monster GD auto-approval provenance, a campaign-custom value database layer,
+  persistent readiness, active drawback tuning/economics, Print Mode projection,
   runtime evaluation, Combat Lab integration, simulation, and Phase 6 surface
   polish and migration diagnostics remain absent. The complete Restriction
   project is not production-complete.
@@ -540,7 +550,7 @@ governance, (5) Campaign-Custom Structured values, (6) surface integration and
 polish, then (7) an optional evaluation foundation only after separate
 authorization. UI must not precede proof of the domain model.
 
-Phase 4A2, Phase 4B1, and Phase 4B2 foundation handoff:
+Phase 4A2, Phase 4B1, Phase 4B2, and Phase 4C1 handoff:
 
 - Lifecycle keys are `DRAFT`, `PENDING_GD_APPROVAL`, `APPROVED`,
   `CHANGES_REQUESTED`, and `APPROVAL_STALE`; Changes Requested is the primary
@@ -576,9 +586,11 @@ Phase 4A2, Phase 4B1, and Phase 4B2 foundation handoff:
   credit until its numeric costing exists.
 - Do not mistake the pure functions or test-only complete tuning fixtures for
   active economic authority. Relational persistence and lifecycle APIs exist,
-  but Character Builder governance UI, Approval Panel, print filtering,
-  readiness storage/UI, production-complete drawback tuning, economic
-  resolution, and active discount application remain separately gated.
+  and the Character Builder now exposes derived governance/readiness UI, but the
+  campaign Approval Panel/pending queue, print filtering, persistent readiness,
+  production-complete drawback tuning, economic resolution, and active discount
+  application remain separately gated. The Oath rate and exceptional cap remain
+  open; self-approval remains unresolved; Monster provenance remains deferred.
 
 Persistence and migration requirements:
 

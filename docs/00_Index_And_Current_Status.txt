@@ -141,7 +141,8 @@ Roleplay Ability costs and final contract privilege adjustments remain open.
 Restrictions, Power Burdens, And Blaze Status
 
 LOCKED SHARED AUTHORING AND GOVERNANCE-ECONOMICS FOUNDATION / PHASES 1-3,
-PHASE 4A2, AND PHASE 4B1 PLAYER GOVERNANCE PERSISTENCE FOUNDATION IMPLEMENTED.
+PHASE 4A2, PHASE 4B1 PLAYER GOVERNANCE PERSISTENCE, PHASE 4B2 AUTHENTICATED
+LIFECYCLE SERVICES, AND PHASE 4C1 CHARACTER BUILDER INTEGRATION IMPLEMENTED.
 A Restriction
 is one atomic,
 enforceable, pre-existing, whole-Ability narrative eligibility condition. A
@@ -216,12 +217,23 @@ server policy seam; production remains `UNRESOLVED` and returns a stable conflic
 without mutation or event. Broader non-Restriction and reliable-enabler/context
 staleness remain open.
 
-No Character Builder governance UI, campaign Approval Panel, readiness field/UI,
-print filtering, active drawback tuning, economic resolution, or active discount
-application exists. Campaign-Custom authoring, Monster approval provenance,
-runtime and Combat Lab evaluation, simulation, and Phase 6 surface polish and
-migration diagnostics remain deferred. The Oath rate and exceptional combined
-cap remain open. The complete Restriction project is not production-complete.
+Phase 4C1 exposes Character Builder governance status and immutable history for
+Player Powers, Signature Moves, and Roleplay Abilities. Draft, Changes Requested,
+and Approval Stale content can use the save-before-submit/resubmit workflow;
+Pending proposals remain immutable and a submitted/live mismatch is visible.
+Valid gross-overspent drafts can save, while a derived, non-persisted Builder
+status keeps gross overspend and non-current governance as table-readiness
+failures. No provisional or active Restriction credit exists, and an approved
+tier is classification only.
+
+The campaign Approval Panel and pending queue are the next governance phase.
+No campaign Approval navigation, print filtering, persistent readiness, active
+drawback tuning, economic resolution, or active discount application exists.
+Campaign-Custom authoring, Monster approval provenance, runtime and Combat Lab
+evaluation, simulation, and Phase 6 surface polish and migration diagnostics
+remain deferred. The Oath rate and exceptional combined cap remain open, and
+self-approval remains unresolved. The complete Restriction project is not
+production-complete.
 
 The ordinary Player tiers are `MATERIAL_LIMITATION` / Material Limitation at
 10%, `SUBSTANTIAL_LIMITATION` / Substantial Limitation at 20%, and
@@ -491,7 +503,8 @@ law until the owning active doc is updated with an explicit decision.
   future work.
 - Spark and Restriction implementation scope.
   Status: RESTRICTION SHARED AUTHORING PHASES 1-3, PHASE 4A2 PURE FOUNDATION,
-  AND PHASE 4B1 PLAYER GOVERNANCE PERSISTENCE FOUNDATION IMPLEMENTED / ACTIONS,
+  PHASE 4B1 PLAYER GOVERNANCE PERSISTENCE, PHASE 4B2 AUTHENTICATED LIFECYCLE,
+  AND PHASE 4C1 CHARACTER BUILDER INTEGRATION IMPLEMENTED / CAMPAIGN APPROVAL,
   ACTIVE ECONOMICS, PRINT INTEGRATION, LATER PHASES, SPECIFIC CONTENT, AND
   RUNTIME OPEN; SPARK OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and
@@ -507,12 +520,17 @@ law until the owning active doc is updated with an explicit decision.
   print-eligibility policy as pure code. Phase 4B1 adds separate relational
   current-governance and immutable review-event persistence for Player Power,
   Signature Move, and Roleplay consumers without moving their live definitions
-  out of builderData or fabricating records/approval. Exact standard template
-  inventory, Campaign-Custom authoring, lifecycle actions and UI, Approval Panel,
-  Monster provenance, active tuning/economics, print projection integration,
-  runtime and Combat Lab integration, specific content, and Phase 6 polish remain
-  later work. The Oath rate, exceptional cap, and three governance questions
-  listed in the status section above remain explicitly unresolved.
+  out of builderData or fabricating records/approval. Phase 4B2 adds authenticated
+  lifecycle reads/actions, and Phase 4C1 exposes their status, history, and
+  save-before-submit/resubmit workflow in the Character Builder. Its readiness
+  display is derived rather than persisted; valid gross-overspent drafts can save,
+  no provisional or active credit applies, and approved tiers are classification
+  only. Exact standard template inventory, Campaign-Custom authoring, the campaign
+  Approval Panel/pending queue, Monster provenance, active tuning/economics, print
+  projection integration, runtime and Combat Lab integration, specific content,
+  and Phase 6 polish remain later work. The Oath rate, exceptional cap, and three
+  governance questions listed in the status section above remain explicitly
+  unresolved.
 - Transformation/Summoning/object/structure/machine/mount builder scopes.
   Status: OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and

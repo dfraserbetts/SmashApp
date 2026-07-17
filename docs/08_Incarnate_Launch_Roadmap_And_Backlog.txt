@@ -1040,6 +1040,14 @@ content prints only with current Approved governance. Approved Roleplay remains
 print-eligible without numeric economics. Later Print Mode must project approved
 content before budgets and CharacterSheetPreview, not hide it with CSS.
 
+Phase 4C1 now exposes these lifecycle and readiness distinctions in the Character
+Builder. Draft, Changes Requested, and Approval Stale content uses a save-before-
+submit/resubmit sequence based on the authoritative saved stable consumer and
+current revision. Pending proposals remain immutable, and a submitted/live
+mismatch is visible. Otherwise valid gross-overspent drafts can save; gross-
+budget and governance readiness are derived and not persisted. No provisional or
+active Restriction credit exists, and an approved tier is classification only.
+
 Restrictions may be drafted and manually reviewed. The shared editor is live for
 ordinary Player Powers, the Signature Move, editable campaign Monster Powers,
 and Roleplay Abilities. Standard Structured and Custom Narrative integration is
@@ -1064,11 +1072,14 @@ Request Changes actions. Stable-ID live resolution, exact server-built
 snapshots, required optimistic revisions, conditional transactions, immutable
 events, live fingerprint guards, Pending mismatch, synthetic Draft reads,
 orphaned history, safe-unsupported approval blocking, and an explicit
-production `UNRESOLVED` same-submitter conflict are implemented. Campaign-Custom
-authoring, Character Builder governance UI, Approval Panel, readiness storage/UI,
-active drawback tuning and discount application, print projection integration,
-Monster approval/GD auto-approval provenance implementation, and Phase 6 surface
-polish and migration diagnostics remain deferred.
+production `UNRESOLVED` same-submitter conflict are implemented. Phase 4C1 adds
+Character Builder governance status/history, stable-key mapping, save-before-
+submit/resubmit actions, Pending mismatch display, and derived draft-save versus
+table-readiness reporting. Campaign-Custom authoring, the campaign Approval Panel
+and pending queue, persistent readiness, active drawback tuning and discount
+application, print projection integration, Monster approval/GD auto-approval
+provenance implementation, and Phase 6 surface polish and migration diagnostics
+remain deferred. Self-approval remains unresolved.
 Manual prose, a selected label, or a stored percentage cannot approve or price
 itself. Complete standard-template coverage, specific pregen Restrictions,
 scenario assumptions, Oath/Power Burden rates and exceptional cap, runtime
@@ -2029,8 +2040,9 @@ costing, descriptor, schema, or data change.
 Restrictions, Power Burdens, And Blaze Development Order
 
 LOCKED DEPENDENCY DIRECTION / RESTRICTION PHASES 1-3, PHASE 4A2 PURE FOUNDATION,
-AND PHASE 4B1 PLAYER GOVERNANCE PERSISTENCE FOUNDATION IMPLEMENTED; LATER WORK
-PARKED. For these connected systems, use
+PHASE 4B1 PLAYER GOVERNANCE PERSISTENCE, PHASE 4B2 AUTHENTICATED LIFECYCLE, AND
+PHASE 4C1 CHARACTER BUILDER INTEGRATION IMPLEMENTED; LATER WORK PARKED. For these
+connected systems, use
 this intended order:
 
 1. Continue the locked shared Restriction authoring model through the seven
@@ -2038,9 +2050,11 @@ this intended order:
    and Standard/Custom Narrative UI are complete. The pure lifecycle, four-tier,
    readiness/print, and BPV-economic foundation is complete. Separate Player
    governance current-row and immutable-event persistence is complete without a
-   backfill. Authenticated actions/UI, Monster provenance, active tuning/credit,
-   print projection integration, campaign-custom values, surface polish/migration
-   diagnostics, and separately authorized optional evaluation remain deferred.
+   backfill. Authenticated lifecycle actions and Character Builder governance/
+   derived-readiness UI are complete. The campaign Approval Panel/pending queue,
+   Monster provenance, active tuning/credit, print projection integration,
+   campaign-custom values, surface polish/migration diagnostics, and separately
+   authorized optional evaluation remain deferred.
 2. Structured Activation Cost and Backlash authoring.
 3. Separate descriptor integration.
 4. Player Character economic calibration and versioned tuning authority;
@@ -2067,12 +2081,12 @@ OPEN design, calibration, content, and implementation work:
 - whether a GD may approve a Restriction on their own Player Character, whether
   broader non-Restriction character-build edits stale approval, and whether
   reliable-enabler or wider-context changes automatically stale approval;
-- authenticated governance server endpoints and UI using the implemented Player
-  persistence foundation under the locked provenance/fingerprint rules; Monster
-  authenticated approval-on-save provenance remains separately deferred;
-- readiness persistence/UI, Campaign-Custom authoring, actual approved-content
-  Print Mode projection, and Phase 6 reference, print, accessibility, and
-  migration-diagnostic surfaces;
+- campaign Approval Panel/navigation and campaign-wide pending queue using the
+  implemented authenticated governance services; Monster authenticated approval-
+  on-save provenance remains separately deferred;
+- persistent readiness, Campaign-Custom authoring, actual approved-content Print
+  Mode projection, and Phase 6 reference, print, accessibility, and migration-
+  diagnostic surfaces;
 - specific pregen Restrictions, campaign values, and explicit scenario
   assumptions, including the preserved Gandalf-style playtest;
 - runtime state, Combat Lab support, and automatic simulation policy;

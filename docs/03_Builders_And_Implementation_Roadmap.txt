@@ -790,8 +790,9 @@ coverage only and is not final pregen balance authority.
 
 Shared Restriction Authoring - Implementation Sequence
 
-LOCKED AUTHORING MODEL / PHASES 1-3, PHASE 4A2 PURE FOUNDATION, AND PHASE 4B1
-PLAYER GOVERNANCE PERSISTENCE FOUNDATION IMPLEMENTED.
+LOCKED AUTHORING MODEL / PHASES 1-3, PHASE 4A2 PURE FOUNDATION, PHASE 4B1
+PLAYER GOVERNANCE PERSISTENCE, PHASE 4B2 AUTHENTICATED LIFECYCLE SERVICES, AND
+PHASE 4C1 CHARACTER BUILDER INTEGRATION IMPLEMENTED.
 The shared editor serves Player
 Character Powers, Roleplay Abilities, and GD-authored Monster Powers while
 respecting their different storage adapters. Player governance persistence is
@@ -908,10 +909,27 @@ Phase 4B2 authenticated lifecycle services and API actions are implemented:
 - preserve self-approval as unresolved through an explicit production
   `UNRESOLVED` policy conflict with no mutation or event.
 
+Phase 4C1 Character Builder governance and draft readiness are implemented:
+
+- show effective lifecycle, immutable history, notes, selected classification,
+  safe-unsupported diagnostics, and local unsaved-currentness warnings for Player
+  Powers, the Signature Move, and Roleplay Abilities using stable consumer keys;
+- save and authoritatively rehydrate the complete Character draft before every
+  submit/resubmit, then reload governance and submit with the current revision;
+- expose Draft, Changes Requested, and Approval Stale submit/resubmit actions,
+  while keeping Pending proposals immutable and visibly reporting submitted/live
+  mismatch without withdrawal, overwrite, or automatic retry;
+- permit otherwise valid normal-Power and Signature-Move gross-pool overspend to
+  save, while retaining every other existing validation failure as save-blocking;
+  and
+- derive gross-budget and governance readiness in the Builder without persisting
+  readiness, activating economics, applying approved tier credit, or blocking
+  combat-runtime Power use.
+
 Later Phase 4 work must:
 
-- integrate these actions into the Character Builder and campaign Approval Panel
-  without mutating immutable submitted or review-event snapshots;
+- add the campaign Approval Panel, Approval navigation, and pending queue without
+  mutating immutable submitted or review-event snapshots;
 - preserve direct semantic fingerprint staleness without prematurely deciding
   the three wider-context governance questions; and
 - immediately approve valid GD-authored Monster Restrictions on save with
@@ -971,11 +989,16 @@ authenticated read, submit, approve, and Request Changes services and thin API
 routes are complete, including optimistic revisions, transactional immutable
 events, live fingerprint guards, synthetic Draft reads, orphaned history,
 safe-unsupported approval blocking, and the unresolved self-approval conflict.
-Campaign-Custom authoring, Player governance UI, approval-panel UI and Monster GD
-auto-approval provenance implementation, a campaign-custom value database layer,
-readiness storage/UI, active drawback tuning and discount application, print
-projection integration, runtime and Combat Lab evaluation, simulation, and Phase
-6 surface polish and migration diagnostics remain absent.
+Phase 4C1 Character Builder governance status/history, stable-key mapping,
+save-before-submit/resubmit, Pending mismatch display, and derived draft-save
+versus table-readiness reporting are complete. Valid gross-overspent drafts can
+save, but no provisional or active credit applies and approved tiers remain
+classification only. Campaign-Custom authoring, the campaign Approval Panel and
+pending queue, Monster GD auto-approval provenance implementation, a campaign-
+custom value database layer, persistent readiness, active drawback tuning and
+discount application, print projection integration, runtime and Combat Lab
+evaluation, simulation, and Phase 6 surface polish and migration diagnostics
+remain absent.
 The complete Restriction project is not production-complete.
 
 The Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`, and
