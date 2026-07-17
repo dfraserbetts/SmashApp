@@ -794,12 +794,30 @@ review notes, and future economic credit do not belong inside the definition.
 Player workflow is Draft, validation, submission, authenticated GD approval or
 Changes Requested return for correction. A direct edit to the approved semantic
 definition makes approval stale. The client cannot manufacture approval;
-future submit, approve, and Request Changes operations must be enforced server-
-side.
+submit, approve, and Request Changes operations are enforced server-side.
 The Phase 4B1 Player persistence foundation can store lifecycle state, current
 submitted and approved fingerprints, submitting/reviewing user IDs,
 submitted/reviewed times, selected tier, and player-facing review notes. It does
-not itself authenticate or execute lifecycle actions.
+not itself authenticate or execute lifecycle actions. Phase 4B2 adds an
+authenticated read service plus submit, approve, and Request Changes actions.
+Submission is available to the assigned active player or a campaign
+GD/administrator; approval and Request Changes require GD/administrator
+authority. Actions use saved live builderData semantics, exact normalized
+snapshots, optimistic submission revisions, conditional writes, and append-only
+events inside Prisma transactions.
+
+Pending submitted proposals are immutable. A pending/live mismatch remains
+stored Pending and is exposed by the read model; approval is blocked until a
+current proposal can be submitted after review. Request Changes still applies
+to the immutable submitted proposal even after live edits. When a changed live
+definition is submitted from stored Approved, the transaction records Approval
+Stale for the prior approval and then Submitted for the revised proposal. GET
+derives effective Approval Stale immediately whenever the current live
+fingerprint differs from the approved fingerprint without mutating state.
+Existing restricted content without a governance row appears as a non-persisted
+synthetic Draft; unrestricted content does not. Deleted consumers preserve
+orphaned history. Safe unsupported definitions may be submitted or returned for
+changes but cannot be approved.
 
 A valid GD-authored Monster Restriction is immediately Approved on save with
 provenance from authenticated server context. It does not perform a Pending
@@ -809,7 +827,10 @@ These governance decisions remain explicitly unresolved: whether a GD may
 approve a Restriction on their own Player Character; whether broader non-
 Restriction build edits stale approval; and whether reliable-enabler or wider-
 context changes automatically stale approval. Only direct semantic-definition
-changes are locked to stale approval.
+changes are locked to stale approval. Production review uses an explicit
+`UNRESOLVED` self-approval policy seam: when reviewer and current submitter are
+the same authenticated user, approval returns a stable conflict and writes
+neither row nor event. This preserves rather than decides the doctrine.
 
 The deterministic normalized fingerprint includes schema version, authoring
 mode, template key/version, normalized parameters, normalized Custom Narrative
@@ -877,9 +898,9 @@ Player Character Powers and Roleplay Abilities use player/GD governance. A
 Roleplay Ability receives no Activation Cost or Backlash. Neither consumer
 currently receives active numeric Restriction credit. Player Power ordinary tier
 rates and the pure future BPV-domain calculation are locked below. Separate
-Player governance persistence now exists, but authenticated approval actions,
-versioned active tuning, and credit application do not. Roleplay may persist the
-same tier classification without
+Player governance persistence and authenticated lifecycle actions now exist,
+but versioned active tuning and credit application do not. Roleplay may persist
+the same tier classification without
 numeric credit until Roleplay numeric costing exists. Gross BPV and cooldown
 basis remain unchanged.
 
@@ -967,14 +988,18 @@ and preservable, and ordinary Ability descriptors remain separate.
 The pure Phase 4A2 governance/economics foundation exists in
 `lib/restrictions/governance.ts` and `lib/restrictions/economics.ts`. Phase 4B1
 adds the Player relational models, no-backfill migration, and pure persistence-
-shape adapter; it activates no workflow or economics. Campaign-Custom authoring,
-authenticated lifecycle actions, Character Builder governance UI, Approval
-Panel, Monster GD auto-approval provenance, a campaign-custom value database
-layer, readiness storage/UI, active drawback tuning, credit application, print
+shape adapter. Phase 4B2 adds the pure stable-ID consumer resolver and lifecycle
+planner, authenticated server read/actions, optimistic revision conflicts,
+transactional immutable events, live-fingerprint approval guards, synthetic
+Draft reads, orphan preservation, safe-unsupported approval blocking, and the
+unresolved self-approval policy conflict. It activates no economics.
+Campaign-Custom authoring, Character Builder governance UI, Approval Panel,
+Monster GD auto-approval provenance, a campaign-custom value database layer,
+readiness storage/UI, active drawback tuning, credit application, print
 projection integration, runtime evaluation, Combat Lab integration, simulation,
-and Phase 6 surface polish and migration diagnostics remain absent. The Oath rate
-and exceptional combined cap remain open. The complete Restriction project is
-not production-complete.
+and Phase 6 surface polish and migration diagnostics remain absent. The Oath
+rate and exceptional combined cap remain open. The complete Restriction project
+is not production-complete.
 A future
 runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
 exact enum names and implementation are separately authorized later work.

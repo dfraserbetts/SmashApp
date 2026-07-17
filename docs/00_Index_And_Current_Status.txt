@@ -195,13 +195,33 @@ fingerprints, lifecycle, selected tier, submitting/reviewing user IDs,
 timestamps, notes, and immutable event snapshots. No existing Restriction was
 backfilled with a governance row, approval, reviewer, or provenance.
 
-No lifecycle endpoint, Character Builder governance UI, campaign Approval Panel,
-readiness field/UI, print filtering, active drawback tuning, economic resolution,
-or active discount application exists. Campaign-Custom authoring, authenticated
-Player lifecycle actions, Monster approval provenance, runtime and Combat Lab
-evaluation, simulation, and Phase 6 surface polish and migration diagnostics
-remain deferred. The Oath rate and exceptional combined cap remain open. The
-complete Restriction project is not production-complete.
+Phase 4B2 adds authenticated Player lifecycle services and thin APIs. The
+assigned active player or a campaign GD/administrator may submit the current
+saved live Restriction; only a campaign GD/administrator may approve or Request
+Changes. The server resolves consumers by stable ID, constructs exact normalized
+snapshots from saved builderData, requires optimistic submission revisions,
+checks live fingerprints, validates every proposed current row and immutable
+event, and performs each action transactionally. Pending proposals remain
+immutable. A revised live definition submitted from stored Approved records an
+Approval Stale event before the new Submitted event in the same transaction.
+Safe unsupported definitions may be submitted or returned for changes but may
+not be approved.
+
+The authenticated Character governance read model returns stored lifecycle and
+derived effective currentness, deterministic immutable history, live/submitted/
+approved fingerprint matches, orphaned history, and a non-persisted synthetic
+Draft for existing restricted content without a governance row. Unrestricted
+content receives no synthetic row. Same-submitter approval uses an explicit
+server policy seam; production remains `UNRESOLVED` and returns a stable conflict
+without mutation or event. Broader non-Restriction and reliable-enabler/context
+staleness remain open.
+
+No Character Builder governance UI, campaign Approval Panel, readiness field/UI,
+print filtering, active drawback tuning, economic resolution, or active discount
+application exists. Campaign-Custom authoring, Monster approval provenance,
+runtime and Combat Lab evaluation, simulation, and Phase 6 surface polish and
+migration diagnostics remain deferred. The Oath rate and exceptional combined
+cap remain open. The complete Restriction project is not production-complete.
 
 The ordinary Player tiers are `MATERIAL_LIMITATION` / Material Limitation at
 10%, `SUBSTANTIAL_LIMITATION` / Substantial Limitation at 20%, and

@@ -515,8 +515,18 @@ Current implementation truth:
   proposals and event snapshots are separate normalized copies bound to their
   deterministic fingerprints. Existing Restrictions received no fabricated
   row, approval, reviewer, provenance, tier, or credit.
-- Campaign-Custom authoring, authenticated governance actions and UI, Approval
-  Panel, Monster GD auto-approval provenance, a campaign-custom value database layer,
+- Phase 4B2 adds a pure stable-ID live-consumer resolver and transition planner,
+  authenticated Character governance reads, assigned-player/GD submission,
+  GD/admin approval and Request Changes, required optimistic revisions,
+  conditional transactional writes, and append-only adapter-valid events. Reads
+  derive currentness from live fingerprints, preserve orphaned history, expose
+  Pending mismatch, and synthesize non-persisted Drafts for existing restricted
+  content without governance rows. Revised Approved content records ordered
+  Approval Stale then Submitted events. Safe unsupported content cannot be
+  approved, and same-submitter review returns the production `UNRESOLVED` policy
+  conflict without mutation.
+- Campaign-Custom authoring, governance UI, Approval Panel, Monster GD
+  auto-approval provenance, a campaign-custom value database layer,
   readiness storage/UI, active drawback tuning/economics, Print Mode projection,
   runtime evaluation, Combat Lab integration, simulation, and Phase 6 surface
   polish and migration diagnostics remain absent. The complete Restriction
@@ -530,7 +540,7 @@ governance, (5) Campaign-Custom Structured values, (6) surface integration and
 polish, then (7) an optional evaluation foundation only after separate
 authorization. UI must not precede proof of the domain model.
 
-Phase 4A2 and Phase 4B1 foundation handoff:
+Phase 4A2, Phase 4B1, and Phase 4B2 foundation handoff:
 
 - Lifecycle keys are `DRAFT`, `PENDING_GD_APPROVAL`, `APPROVED`,
   `CHANGES_REQUESTED`, and `APPROVAL_STALE`; Changes Requested is the primary
@@ -565,10 +575,10 @@ Phase 4A2 and Phase 4B1 foundation handoff:
   Player print-readiness rule. Roleplay shares tiers but receives no numeric
   credit until its numeric costing exists.
 - Do not mistake the pure functions or test-only complete tuning fixtures for
-  active authority. The relational persistence shape exists, but lifecycle APIs,
-  Character Builder governance UI, Approval Panel, print filtering, readiness
-  storage/UI, production-complete drawback tuning, economic resolution, and
-  active discount application remain separately gated.
+  active economic authority. Relational persistence and lifecycle APIs exist,
+  but Character Builder governance UI, Approval Panel, print filtering,
+  readiness storage/UI, production-complete drawback tuning, economic
+  resolution, and active discount application remain separately gated.
 
 Persistence and migration requirements:
 
@@ -582,7 +592,9 @@ Persistence and migration requirements:
   the live semantic definition or generated descriptor into governance.
 - Existing semantic Restrictions have no automatic governance record. Do not
   manufacture Draft, approval, reviewer provenance, tier, or credit during
-  migration; later authenticated server integration must create/reconcile rows.
+  migration; the authenticated read model represents existing restricted
+  content as synthetic Draft without persisting it, and an explicit submission
+  creates the first row.
 - Keep Monster semantic Restriction definitions in the nullable relational
   Power.restrictionJson field. Database NULL is canonical absence. Do not create
   a MonsterRestriction model or player-economic Monster fields.
@@ -599,13 +611,15 @@ Trust and governance requirements:
 - Keep semantic definition, governance record, and future Player economics
   separate. The client cannot manufacture approval.
 - Treat current submitted and review-event semantic snapshots as immutable exact
-  normalized review evidence; verify deterministic fingerprints and explicit
-  campaign ownership before future writes.
+  normalized review evidence; current writes verify deterministic fingerprints,
+  explicit campaign ownership, and expected submission revision.
 - Enforce player submit/approve/request-changes transitions server-side and bind
   approval to a deterministic normalized semantic fingerprint.
 - Direct semantic-definition edits stale approval. Do not decide whether GD
   self-approval on their own Player Character, broader non-Restriction build
-  edits, or reliable-enabler/wider-context changes also stale approval.
+  edits, or reliable-enabler/wider-context changes also stale approval. Current
+  production review returns `SELF_APPROVAL_POLICY_UNRESOLVED` for same-submitter
+  approval without treating that conflict as permanent denial doctrine.
 - A valid GD-authored Monster Restriction auto-approves on save using
   authenticated server provenance, without Pending self-review.
 - Monster Restrictions grant no Power Point discount, BPV reduction, threat-

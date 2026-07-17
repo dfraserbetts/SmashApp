@@ -884,14 +884,36 @@ Phase 4B1 Player governance persistence foundation is implemented:
 - perform no backfill: existing semantic Restrictions received no governance
   record, approval, reviewer, provenance, tier, or credit.
 
+Phase 4B2 authenticated lifecycle services and API actions are implemented:
+
+- resolve Player Power, Signature Move, and Roleplay Ability consumers by stable
+  ID from normalized saved builderData, preserving absent, duplicate, malformed,
+  unresolved legacy, cross-campaign, and safe unsupported diagnostics;
+- expose authenticated Character governance reads with deterministic history,
+  live/submitted/approved fingerprint matches, stored and effective lifecycle,
+  pending mismatch, orphaned records, and non-persisted synthetic Drafts for
+  existing restricted content without governance rows;
+- allow the assigned active player or campaign GD/administrator to submit the
+  current saved live Restriction, while approval and Request Changes require
+  authenticated GD/administrator authority;
+- require an expected submission revision for every write, use conditional
+  lifecycle/revision updates, and append adapter-valid immutable events inside
+  one Prisma transaction;
+- keep Pending proposals immutable, block approval after live semantic mismatch,
+  permit Request Changes against the immutable submitted proposal, and record
+  ordered Approval Stale then Submitted events when revised Approved content is
+  resubmitted;
+- allow safe unsupported submission/return-for-changes while blocking approval;
+  and
+- preserve self-approval as unresolved through an explicit production
+  `UNRESOLVED` policy conflict with no mutation or event.
+
 Later Phase 4 work must:
 
-- implement player Draft, Pending Game Director Approval, Approved, Changes
-  Requested, and Approval Stale transitions with authenticated server-side authority;
-- use the separate persistence foundation to implement authenticated actions
+- integrate these actions into the Character Builder and campaign Approval Panel
   without mutating immutable submitted or review-event snapshots;
-- stale approval after a direct semantic-definition edit without prematurely
-  deciding the three preserved wider-context governance questions; and
+- preserve direct semantic fingerprint staleness without prematurely deciding
+  the three wider-context governance questions; and
 - immediately approve valid GD-authored Monster Restrictions on save with
   authenticated provenance and no performative Pending self-review or economic
   credit.
@@ -944,13 +966,16 @@ ordinary Ability descriptors remain separate. The Phase 4A2 pure governance,
 readiness, print-eligibility, and economic-domain foundation is complete. The
 Phase 4B1 Player governance relational persistence foundation is also complete,
 with current submitted snapshots and immutable review history separate from live
-builderData semantics and no fabricated legacy records or approvals.
-Campaign-Custom authoring, authenticated lifecycle actions, Player governance UI,
-approval and Monster GD auto-approval provenance implementation, a campaign-
-custom value database layer, Approval Panel, readiness storage/UI, active
-drawback tuning and discount application, print projection integration, runtime
-and Combat Lab evaluation, simulation, and Phase 6 surface polish and migration
-diagnostics remain absent.
+builderData semantics and no fabricated legacy records or approvals. Phase 4B2
+authenticated read, submit, approve, and Request Changes services and thin API
+routes are complete, including optimistic revisions, transactional immutable
+events, live fingerprint guards, synthetic Draft reads, orphaned history,
+safe-unsupported approval blocking, and the unresolved self-approval conflict.
+Campaign-Custom authoring, Player governance UI, approval-panel UI and Monster GD
+auto-approval provenance implementation, a campaign-custom value database layer,
+readiness storage/UI, active drawback tuning and discount application, print
+projection integration, runtime and Combat Lab evaluation, simulation, and Phase
+6 surface polish and migration diagnostics remain absent.
 The complete Restriction project is not production-complete.
 
 The Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`, and

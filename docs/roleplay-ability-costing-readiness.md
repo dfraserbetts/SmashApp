@@ -487,7 +487,23 @@ submission revision, selected tier, submitting/reviewing or acting user IDs,
 timestamps, and player-facing notes are persisted as governance evidence. No
 existing Roleplay Restriction received a fabricated governance row, approval,
 reviewer, or provenance. Direct edits to an approved semantic definition remain
-locked to stale approval, but no lifecycle action API performs that transition yet.
+locked to stale approval. Phase 4B2 adds authenticated Character governance
+reads plus submit, approve, and Request Changes actions. The assigned active
+player or campaign GD/administrator may submit the current saved live Roleplay
+Restriction; approval and Request Changes require GD/administrator authority.
+Every write requires the expected submission revision, validates adapter shapes,
+and appends immutable events transactionally. A changed live definition
+submitted from stored Approved records Approval Stale then Submitted in one
+transaction, while GET derives effective Stale from a fingerprint mismatch
+without mutating state.
+
+Pending proposals remain immutable and the read model exposes when the submitted
+proposal no longer matches the live Ability. Approval is blocked in that state;
+Request Changes still applies to the immutable proposal. Existing restricted
+Roleplay content without governance appears as a non-persisted synthetic Draft,
+unrestricted content receives no synthetic row, and deleted consumers preserve
+orphaned history. Safe unsupported definitions may be submitted or returned for
+changes but cannot be approved.
 
 Roleplay uses the same ordered classification as Player Powers and Signature
 Moves: `MATERIAL_LIMITATION` / Material Limitation,
@@ -503,9 +519,9 @@ campaign and must carry defining narrative consequence plus mechanical scarcity
 under explicit GD prevalence/enforceability judgement. Dramatic wording alone,
 cosmetic conditions, or routine enabling do not qualify.
 
-The Player persistence model can record a Roleplay selected tier and approval
-provenance, but no lifecycle API or governance UI writes it yet and Roleplay
-receives no numeric credit until Roleplay numeric costing exists. The Player Power
+The Player lifecycle API can record a Roleplay selected tier and authenticated
+approval provenance, but no Character Builder governance UI invokes it yet and
+Roleplay receives no numeric credit until Roleplay numeric costing exists. The Player Power
 10%/20%/30% rates, 1 BPV floor, and 0.5 BPV rounding are not Roleplay Potential
 values and must not be copied into a Roleplay resolver. Monster Restrictions
 remain outside the Player tier system and receive no numeric credit.
@@ -516,14 +532,17 @@ Draft, Pending, Changes Requested, Approval Stale, malformed, unresolved legacy,
 and missing-governance content is omitted from the future table-ready projection.
 Approved Roleplay is print-eligible despite unavailable economics. The actual
 pre-budget Print Mode projection, warning/count UI, readiness persistence,
-lifecycle APIs, Character Builder governance UI, campaign Approval Panel, and
-approval workflow remain deferred.
+Character Builder governance UI, campaign Approval Panel, and UI workflow remain
+deferred.
 
 Whether a GD may approve a Restriction on their own Player Character, whether
 broader non-Restriction character-build edits stale approval, and whether
 reliable-enabler or wider-context changes automatically stale approval remain
 unresolved. Reliable player/party enabling may inform a future economic review
 but does not automatically invalidate the Restriction under this authoring lock.
+The current server preserves self-approval as unresolved through an explicit
+`UNRESOLVED` policy seam: same-submitter approval returns a stable conflict and
+writes neither row nor event.
 
 The resolver must not judge free-text Restriction quality:
 
@@ -548,13 +567,14 @@ The fingerprint contract is locked in the shared authority: schema version,
 mode, template key/version, normalized parameters or Custom Narrative text, and
 campaign-value identity are semantic inputs; lifecycle, reviewer/timestamps,
 notes, UI state, descriptor-only formatting, and future economics are excluded.
-Complete standard-template inventory, governance server endpoints/UI, Campaign-
-Custom authoring, Phase 6 surface polish and migration diagnostics, and numeric
-Roleplay credits remain later work. The pure shared lifecycle/tier/readiness/print
-policy and Phase 4B1 relational persistence shape exist, but no active approval
-workflow, readiness storage, economic resolver, Print Mode filter, or runtime
-behaviour exists. Oath rate and the exceptional combined cap remain open, and
-Monster authenticated provenance remains outside the Player persistence tables.
+Complete standard-template inventory, governance UI, Campaign-Custom authoring,
+Phase 6 surface polish and migration diagnostics, and numeric Roleplay credits
+remain later work. The pure shared lifecycle/tier/readiness/print policy, Phase
+4B1 relational persistence, and Phase 4B2 authenticated lifecycle actions exist,
+but no Builder/Approval Panel workflow, readiness storage, economic resolver,
+Print Mode filter, or runtime behaviour exists. Oath rate and the exceptional
+combined cap remain open, and Monster authenticated provenance remains outside
+the Player persistence tables.
 
 ## Future Pure Resolver Contract
 

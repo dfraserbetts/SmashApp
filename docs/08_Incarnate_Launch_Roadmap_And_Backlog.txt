@@ -1058,12 +1058,17 @@ governance and immutable review-event persistence for Player Power, Signature
 Move, and Roleplay consumers. It stores the exact normalized submitted/event
 snapshots, lifecycle, revision, fingerprints, tier, user IDs, timestamps, and
 notes while leaving live semantics in builderData. No existing Restriction was
-backfilled or granted approval/provenance. Campaign-Custom authoring,
-authenticated lifecycle actions and Character Builder governance UI, Approval
-Panel, readiness storage/UI, active drawback tuning and discount application,
-print projection integration, Monster approval/GD auto-approval provenance
-implementation, and Phase 6 surface polish and migration diagnostics remain
-deferred.
+backfilled or granted approval/provenance. Phase 4B2 now provides authenticated
+Character governance reads and assigned-player/GD submit, GD/admin approve, and
+Request Changes actions. Stable-ID live resolution, exact server-built
+snapshots, required optimistic revisions, conditional transactions, immutable
+events, live fingerprint guards, Pending mismatch, synthetic Draft reads,
+orphaned history, safe-unsupported approval blocking, and an explicit
+production `UNRESOLVED` same-submitter conflict are implemented. Campaign-Custom
+authoring, Character Builder governance UI, Approval Panel, readiness storage/UI,
+active drawback tuning and discount application, print projection integration,
+Monster approval/GD auto-approval provenance implementation, and Phase 6 surface
+polish and migration diagnostics remain deferred.
 Manual prose, a selected label, or a stored percentage cannot approve or price
 itself. Complete standard-template coverage, specific pregen Restrictions,
 scenario assumptions, Oath/Power Burden rates and exceptional cap, runtime
