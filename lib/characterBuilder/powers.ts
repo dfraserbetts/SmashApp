@@ -148,6 +148,39 @@ export type CharacterPowerBudget = {
   cooldownAuthorityMode: PowerCooldownAuthorityMode;
 };
 
+export type CharacterPowerValidationParams = {
+  level: number;
+  powers: CharacterPower[];
+  tuningSnapshot?: PowerTuningSnapshot | null;
+  playerPowerSpendScalar?: number | null;
+  powerPool?: number | null;
+  powerPoolKind?: CharacterPowerPoolKind;
+  powerLabel?: string;
+  poolDescription?: string;
+  offencePressureMode?: PowerCostContext["offencePressureMode"];
+  offencePressureDie?: CombatDieSize | null;
+  cooldownAuthorityMode?: PowerCooldownAuthorityMode;
+  expectedTargetTeamContext?: ExpectedTargetTeamContext | null;
+};
+
+export type CharacterPowerValidationResult = Readonly<{
+  summary: CharacterPowerBudget;
+  saveBlockingErrors: readonly string[];
+  readinessErrors: readonly string[];
+  allErrors: readonly string[];
+  overspent: boolean;
+}>;
+
+export type CharacterGrossBudgetReadiness = Readonly<{
+  normalPowerPoolOverspent: boolean;
+  signatureMovePoolOverspent: boolean;
+  normalPowerTotalSpent: number;
+  normalPowerPool: number;
+  signatureMoveTotalSpent: number;
+  signatureMovePool: number;
+  grossBudgetReady: boolean;
+}>;
+
 type ResolvedOffencePressure = OffencePressureAnalysis & {
   applicationMode?: string;
   appliedBasePowerValueSurcharge?: number;
@@ -1675,26 +1708,57 @@ export function synchronizeCharacterPowerCooldownCaches(params: {
   };
 }
 
-export function validateCharacterPowers(params: {
-  level: number;
-  powers: CharacterPower[];
-  tuningSnapshot?: PowerTuningSnapshot | null;
-  playerPowerSpendScalar?: number | null;
-  powerPool?: number | null;
-  powerPoolKind?: CharacterPowerPoolKind;
-  powerLabel?: string;
-  poolDescription?: string;
-  offencePressureMode?: PowerCostContext["offencePressureMode"];
-  cooldownAuthorityMode?: PowerCooldownAuthorityMode;
-  expectedTargetTeamContext?: ExpectedTargetTeamContext | null;
-}) {
+export function summarizeCharacterPowerValidation(
+  params: CharacterPowerValidationParams,
+): CharacterPowerValidationResult {
   const summary = summarizeCharacterPowers(params);
   const powerLabel = params.powerLabel ?? "Power";
-  const errors = summary.powers.flatMap((row, index) =>
+  const saveBlockingErrors = summary.powers.flatMap((row, index) =>
     row.errors.map((error) => `${powerLabel} ${index + 1}: ${error}`),
   );
+  const readinessErrors: string[] = [];
   if (summary.overspent) {
-    errors.push(`Total ${powerLabel} Point spend cannot exceed ${params.poolDescription ?? "Character Level x 50"}.`);
+    readinessErrors.push(
+      `Total ${powerLabel} Point spend cannot exceed ${params.poolDescription ?? "Character Level x 50"}.`,
+    );
   }
-  return Array.from(new Set(errors));
+  const normalizedSaveBlockingErrors = Array.from(new Set(saveBlockingErrors));
+  const normalizedReadinessErrors = Array.from(new Set(readinessErrors));
+  return Object.freeze({
+    summary,
+    saveBlockingErrors: Object.freeze(normalizedSaveBlockingErrors),
+    readinessErrors: Object.freeze(normalizedReadinessErrors),
+    allErrors: Object.freeze(Array.from(new Set([
+      ...normalizedSaveBlockingErrors,
+      ...normalizedReadinessErrors,
+    ]))),
+    overspent: summary.overspent,
+  });
+}
+
+export function validateCharacterPowersForDraftSave(
+  params: CharacterPowerValidationParams,
+): string[] {
+  return [...summarizeCharacterPowerValidation(params).saveBlockingErrors];
+}
+
+export function validateCharacterPowers(
+  params: CharacterPowerValidationParams,
+): string[] {
+  return [...summarizeCharacterPowerValidation(params).allErrors];
+}
+
+export function buildCharacterGrossBudgetReadiness(params: {
+  normal: CharacterPowerBudget;
+  signature: CharacterPowerBudget;
+}): CharacterGrossBudgetReadiness {
+  return Object.freeze({
+    normalPowerPoolOverspent: params.normal.overspent,
+    signatureMovePoolOverspent: params.signature.overspent,
+    normalPowerTotalSpent: params.normal.totalSpent,
+    normalPowerPool: params.normal.powerPool,
+    signatureMoveTotalSpent: params.signature.totalSpent,
+    signatureMovePool: params.signature.powerPool,
+    grossBudgetReady: !params.normal.overspent && !params.signature.overspent,
+  });
 }

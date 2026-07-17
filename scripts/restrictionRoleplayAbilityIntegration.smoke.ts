@@ -474,8 +474,9 @@ ok(builderSource.includes("This Restriction applies to the complete Ability."), 
 ok(builderSource.includes("data-roleplay-restriction-summary=\"true\""), "Compact Restriction summary exists.");
 ok(builderSource.indexOf("data-roleplay-restriction-summary=\"true\"") > builderSource.indexOf("</button>", builderSource.indexOf("abilityCollapseKey")), "Restriction summary is outside the collapse button.");
 ok(builderSource.indexOf("Generated Descriptor") < builderSource.indexOf("data-testid=\"roleplay-ability-whole-restriction-editor\""), "Generated descriptor remains separate before Restriction authority.");
-equal((builderSource.match(/builderData: finalMaterializedBuilderData/g) ?? []).length, 2, "Save and equipment sync use the same final materialized payload.");
-equal((builderSource.match(/rehydrateRoleplayAbilityRestrictionStates/g) ?? []).length >= 3, true, "Load/success lifecycle rehydrates authoritative Roleplay states.");
+equal((builderSource.match(/builderData: finalMaterializedBuilderData/g) ?? []).length, 1, "Reusable save operation owns the single final materialized payload.");
+equal((builderSource.match(/saveCharacterDraft\(\)/g) ?? []).length >= 3, true, "Save, equipment sync, and governance submission reuse the authoritative save operation.");
+equal((builderSource.match(/rehydrateRoleplayAbilityRestrictionStates/g) ?? []).length >= 2, true, "Load and reusable save success rehydrate authoritative Roleplay states.");
 ok(routeSource.indexOf("validateRawRoleplayAbilityRestrictionWrite") < routeSource.indexOf("normalizeBuilderData(body.builderData)"), "Raw Roleplay guard runs before normalization destroys evidence.");
 ok(reviewSource.includes("Legacy Restriction Type"), "Review panel displays legacy type.");
 ok(reviewSource.includes("Legacy Restriction Band"), "Review panel displays legacy band without economic authority.");

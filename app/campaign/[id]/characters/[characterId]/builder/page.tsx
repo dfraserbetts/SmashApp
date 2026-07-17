@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 
 import { CampaignNav } from "@/app/components/CampaignNav";
 import { LegacyRoleplayRestrictionReview } from "@/app/components/restrictions/LegacyRoleplayRestrictionReview";
+import { PlayerRestrictionGovernancePanel } from "@/app/components/restrictions/PlayerRestrictionGovernancePanel";
 import { RestrictionEditor } from "@/app/components/restrictions/RestrictionEditor";
 import { RestrictionReadOnly } from "@/app/components/restrictions/RestrictionReadOnly";
 import {
@@ -97,11 +98,14 @@ import {
   readCharacterPowerAttachedHostileEntryPattern,
   SECONDARY_DEPENDENCY_MODE_LABELS,
   SECONDARY_DEPENDENCY_MODE_OPTIONS,
+  buildCharacterGrossBudgetReadiness,
   signatureMovePointPool,
   summarizeCharacterPowers,
-  validateCharacterPowers,
+  summarizeCharacterPowerValidation,
   type CharacterPower,
+  type CharacterGrossBudgetReadiness,
 } from "@/lib/characterBuilder/powers";
+import { createRestrictionFingerprint } from "@/lib/restrictions";
 import { createRestrictionDraftFromDefinition } from "@/lib/restrictions/editorModel";
 import {
   getPlayerPowerRestrictionDraftKey,
@@ -123,6 +127,16 @@ import {
   type RoleplayAbilityRestrictionEditorState,
   type RoleplayAbilityRestrictionStateMap,
 } from "@/lib/restrictions/roleplayAbilityEditorIntegration";
+import type { PlayerRestrictionConsumer } from "@/lib/restrictions/governance";
+import {
+  buildPlayerRestrictionGovernanceEntryMap,
+  deriveCharacterRestrictionGovernanceReadiness,
+  formatRestrictionGovernanceSummary,
+  getPlayerRestrictionGovernanceEntryKey,
+  replacePlayerRestrictionGovernanceEntry,
+  type CharacterRestrictionGovernanceReadModel,
+  type PlayerRestrictionGovernanceReadEntry,
+} from "@/lib/restrictions/governanceView";
 import {
   ROLEPLAY_DICE_COUNT_OPTIONS,
   ROLEPLAY_INTENTION_OPTIONS,
@@ -229,6 +243,7 @@ type BuilderPayload = {
   transferTargets: BackpackTransferTarget[];
   powerTuning: PowerTuningSnapshot;
   characterBuilderTuning: CharacterBuilderTuningSnapshot;
+  grossBudgetReadiness?: CharacterGrossBudgetReadiness;
   error?: string;
 };
 
@@ -304,6 +319,21 @@ type BuilderDraft = {
   level: string;
   builderData: CharacterBuilderData;
 };
+
+type BuilderSaveResult =
+  | Readonly<{
+      ok: true;
+      character: CharacterBuilderRecord;
+      governance: CharacterRestrictionGovernanceReadModel | null;
+      grossBudgetReadiness: CharacterGrossBudgetReadiness;
+    }>
+  | Readonly<{ ok: false; error: string }>;
+
+type GovernanceActionFeedback = Readonly<{
+  key: string;
+  kind: "success" | "error";
+  message: string;
+}> | null;
 
 const EMPTY_BACKPACK_ITEMS: BuilderBackpackItem[] = [];
 const EMPTY_TRANSFER_TARGETS: BackpackTransferTarget[] = [];
@@ -1287,6 +1317,15 @@ export default function CharacterBuilderPage() {
   const [roleplayRestrictionStates, setRoleplayRestrictionStates] = useState<
     RoleplayAbilityRestrictionStateMap
   >({});
+  const [governanceReadModel, setGovernanceReadModel] = useState<
+    CharacterRestrictionGovernanceReadModel | null
+  >(null);
+  const [governanceLoading, setGovernanceLoading] = useState(false);
+  const [governanceLoadError, setGovernanceLoadError] = useState<string | null>(null);
+  const [activeGovernanceActionKey, setActiveGovernanceActionKey] = useState<string | null>(null);
+  const [governanceActionFeedback, setGovernanceActionFeedback] = useState<
+    GovernanceActionFeedback
+  >(null);
   const [modifierConversionDrafts, setModifierConversionDrafts] = useState<
     Record<string, ModifierConversionDraft>
   >({});
@@ -1443,9 +1482,9 @@ export default function CharacterBuilderPage() {
     () => (builderData.signatureMove ? [builderData.signatureMove] : []),
     [builderData.signatureMove],
   );
-  const signatureMoveBudget = useMemo(
+  const signatureMoveValidation = useMemo(
     () =>
-      summarizeCharacterPowers({
+      summarizeCharacterPowerValidation({
         level: currentLevel,
         powers: signatureMovePowers,
         tuningSnapshot: payload?.powerTuning ?? null,
@@ -1458,6 +1497,7 @@ export default function CharacterBuilderPage() {
       }),
     [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie, expectedTargetTeamContext],
   );
+  const signatureMoveBudget = signatureMoveValidation.summary;
   const signatureMoveEditorBudget = useMemo(
     () =>
       summarizeCharacterPowers({
@@ -1473,9 +1513,9 @@ export default function CharacterBuilderPage() {
       }),
     [signatureMoveDraft, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie, expectedTargetTeamContext],
   );
-  const powerBudget = useMemo(
+  const powerValidation = useMemo(
     () =>
-      summarizeCharacterPowers({
+      summarizeCharacterPowerValidation({
         level: currentLevel,
         powers: builderData.powers,
         tuningSnapshot: payload?.powerTuning ?? null,
@@ -1485,47 +1525,93 @@ export default function CharacterBuilderPage() {
       }),
     [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie, expectedTargetTeamContext],
   );
-  const powerValidationErrors = useMemo(
-    () =>
-      validateCharacterPowers({
-        level: currentLevel,
-        powers: builderData.powers,
-        tuningSnapshot: payload?.powerTuning ?? null,
-        playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
-        expectedTargetTeamContext,
-      }),
-    [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, expectedTargetTeamContext],
-  );
-  const signatureMoveValidationErrors = useMemo(
-    () =>
-      validateCharacterPowers({
-        level: currentLevel,
-        powers: signatureMovePowers,
-        tuningSnapshot: payload?.powerTuning ?? null,
-        playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
-        powerPool: signatureMovePointPool(currentLevel),
-        powerPoolKind: "signature",
-        powerLabel: "Signature Move",
-        poolDescription: "Character Level x 20",
-        offencePressureMode: "reviewOnly",
-        expectedTargetTeamContext,
-      }),
-    [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, expectedTargetTeamContext],
-  );
+  const powerBudget = powerValidation.summary;
+  const powerValidationErrors = powerValidation.allErrors;
+  const signatureMoveValidationErrors = signatureMoveValidation.allErrors;
+  const grossBudgetReadiness = buildCharacterGrossBudgetReadiness({
+    normal: powerBudget,
+    signature: signatureMoveBudget,
+  });
   const blockingSaveErrors = useMemo(
     () => [
       ...builderValidationErrors,
-      ...powerValidationErrors,
-      ...signatureMoveValidationErrors,
+      ...powerValidation.saveBlockingErrors,
+      ...signatureMoveValidation.saveBlockingErrors,
       ...restrictionValidationErrors,
       ...roleplayRestrictionValidationErrors,
     ],
-    [builderValidationErrors, powerValidationErrors, restrictionValidationErrors, roleplayRestrictionValidationErrors, signatureMoveValidationErrors],
+    [builderValidationErrors, powerValidation.saveBlockingErrors, restrictionValidationErrors, roleplayRestrictionValidationErrors, signatureMoveValidation.saveBlockingErrors],
   );
   const canSave =
     canEdit &&
     !saving &&
     blockingSaveErrors.length === 0;
+
+  const governanceEntryMap = useMemo(
+    () => buildPlayerRestrictionGovernanceEntryMap(governanceReadModel),
+    [governanceReadModel],
+  );
+  const governanceReadinessConsumers = useMemo(() => {
+    const materialized = finalMaterializedBuilderData;
+    const fingerprint = (definition: CharacterPower["restriction"]) =>
+      definition ? createRestrictionFingerprint(definition) : null;
+    return [
+      ...builderData.powers.map((power, index) => {
+        const definition = materialized?.powers[index]?.restriction ?? null;
+        return {
+          consumerType: "PLAYER_POWER" as const,
+          consumerId: power.id?.trim() ?? "",
+          consumerName: power.name.trim() || `Power ${index + 1}`,
+          hasSemanticRestriction: definition !== null,
+          semanticValid: Boolean(materialized),
+          ordinaryValidationPasses: (powerBudget.powers[index]?.errors.length ?? 1) === 0,
+          localFingerprint: fingerprint(definition),
+        };
+      }),
+      ...(builderData.signatureMove
+        ? [{
+            consumerType: "SIGNATURE_MOVE" as const,
+            consumerId: builderData.signatureMove.id?.trim() ?? "",
+            consumerName: builderData.signatureMove.name.trim() || "Signature Move",
+            hasSemanticRestriction: materialized?.signatureMove?.restriction != null,
+            semanticValid: Boolean(materialized),
+            ordinaryValidationPasses: (signatureMoveBudget.powers[0]?.errors.length ?? 1) === 0,
+            localFingerprint: fingerprint(materialized?.signatureMove?.restriction ?? null),
+          }]
+        : []),
+      ...builderData.roleplayAbilities.map((ability, index) => {
+        const definition = materialized?.roleplayAbilities[index]?.restriction ?? null;
+        return {
+          consumerType: "ROLEPLAY_ABILITY" as const,
+          consumerId: ability.id.trim(),
+          consumerName: ability.name.trim() || `Roleplay Ability ${index + 1}`,
+          hasSemanticRestriction: definition !== null,
+          semanticValid: Boolean(materialized),
+          ordinaryValidationPasses: getRoleplayAbilityWarnings(ability).length === 0,
+          localFingerprint: fingerprint(definition),
+        };
+      }),
+    ];
+  }, [builderData.powers, builderData.roleplayAbilities, builderData.signatureMove, finalMaterializedBuilderData, powerBudget.powers, signatureMoveBudget.powers]);
+  const governanceReadiness = useMemo(
+    () => deriveCharacterRestrictionGovernanceReadiness({
+      model: governanceReadModel,
+      loadError: governanceLoadError,
+      consumers: governanceReadinessConsumers,
+    }),
+    [governanceLoadError, governanceReadinessConsumers, governanceReadModel],
+  );
+  const readinessOnlyErrors = useMemo(
+    () => Array.from(new Set([
+      ...powerValidation.readinessErrors,
+      ...signatureMoveValidation.readinessErrors,
+      ...governanceReadiness.issues,
+    ])),
+    [governanceReadiness.issues, powerValidation.readinessErrors, signatureMoveValidation.readinessErrors],
+  );
+  const tableReady = blockingSaveErrors.length === 0 &&
+    grossBudgetReadiness.grossBudgetReady &&
+    governanceReadiness.ready;
 
   const builderApiUrl = useMemo(() => {
     if (!campaignId || !characterId) return "";
@@ -1533,6 +1619,44 @@ export default function CharacterBuilderPage() {
       characterId,
     )}/builder`;
   }, [campaignId, characterId]);
+
+  const governanceApiUrl = useMemo(() => {
+    if (!campaignId || !characterId) return "";
+    return `/api/campaigns/${encodeURIComponent(campaignId)}/characters/${encodeURIComponent(
+      characterId,
+    )}/restriction-governance`;
+  }, [campaignId, characterId]);
+
+  async function loadGovernance(): Promise<CharacterRestrictionGovernanceReadModel | null> {
+    if (!governanceApiUrl) {
+      setGovernanceLoadError("Missing campaign or character id for Restriction governance.");
+      return null;
+    }
+    setGovernanceLoading(true);
+    setGovernanceLoadError(null);
+    try {
+      const res = await fetch(governanceApiUrl, {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as
+        CharacterRestrictionGovernanceReadModel & { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to load Restriction governance.");
+      }
+      setGovernanceReadModel(data);
+      return data;
+    } catch (governanceError) {
+      setGovernanceLoadError(
+        governanceError instanceof Error
+          ? governanceError.message
+          : "Failed to load Restriction governance.",
+      );
+      return null;
+    } finally {
+      setGovernanceLoading(false);
+    }
+  }
 
   async function loadBuilder() {
     if (!builderApiUrl) {
@@ -1575,6 +1699,7 @@ export default function CharacterBuilderPage() {
       setRoleplayRestrictionStates(
         initializeRoleplayAbilityRestrictionStates(loadedDraft.builderData),
       );
+      await loadGovernance();
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load builder.");
     } finally {
@@ -2023,6 +2148,35 @@ export default function CharacterBuilderPage() {
                 const restrictionSummary = getPlayerPowerRestrictionSummaryLabel(
                   restrictionDraft,
                 );
+                const governanceConsumerType: PlayerRestrictionConsumer =
+                  powerIndex === SIGNATURE_MOVE_POWER_INDEX
+                    ? "SIGNATURE_MOVE"
+                    : "PLAYER_POWER";
+                const stablePowerId = power.id?.trim() || null;
+                const governanceActionKey = stablePowerId
+                  ? getPlayerRestrictionGovernanceEntryKey(
+                      governanceConsumerType,
+                      stablePowerId,
+                    )
+                  : null;
+                const governanceEntry = governanceActionKey
+                  ? governanceEntryMap.get(governanceActionKey) ?? null
+                  : null;
+                const materializedPower = powerIndex === SIGNATURE_MOVE_POWER_INDEX
+                  ? finalMaterializedBuilderData?.signatureMove ?? null
+                  : finalMaterializedBuilderData?.powers.find(
+                      (candidate) => candidate.id === power.id,
+                    ) ?? null;
+                const localRestrictionDefinition = materializedPower?.restriction ?? null;
+                const localRestrictionFingerprint = localRestrictionDefinition
+                  ? createRestrictionFingerprint(localRestrictionDefinition)
+                  : null;
+                const governanceSummary = materializedPower
+                  ? formatRestrictionGovernanceSummary({
+                      definition: localRestrictionDefinition,
+                      entry: governanceEntry,
+                    })
+                  : `Restriction: ${restrictionSummary}`;
                 const powerCollapseKey = getCharacterPowerCollapseKey(power, powerIndex);
                 const powerCollapsed = collapsedPowerKeys[powerCollapseKey] ?? defaultCollapsed;
                 const powerBodyId = `character-power-body-${power.id ?? powerIndex}`;
@@ -2095,7 +2249,7 @@ export default function CharacterBuilderPage() {
                           className="shrink-0 rounded border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-300"
                           data-testid="character-power-collapsed-restriction-summary"
                         >
-                          {restrictionSummary}
+                          {governanceSummary}
                         </div>
                       ) : null}
                       {allowRemove ? (
@@ -2478,6 +2632,38 @@ export default function CharacterBuilderPage() {
                         )}
                       />
                     </div>
+
+                    <PlayerRestrictionGovernancePanel
+                      consumerType={governanceConsumerType}
+                      consumerId={stablePowerId}
+                      consumerNoun="Power"
+                      entry={governanceEntry}
+                      localDefinition={localRestrictionDefinition}
+                      localFingerprint={localRestrictionFingerprint}
+                      materializationReady={materializedPower !== null}
+                      ordinaryValidationPasses={(summary?.errors.length ?? 1) === 0}
+                      grossPoolOverspent={
+                        governanceConsumerType === "SIGNATURE_MOVE"
+                          ? signatureMoveValidation.overspent
+                          : powerValidation.overspent
+                      }
+                      canEdit={canEdit}
+                      governanceAvailable={Boolean(governanceReadModel && !governanceLoadError)}
+                      busy={saving || activeGovernanceActionKey === governanceActionKey}
+                      feedback={
+                        governanceActionFeedback?.key === governanceActionKey
+                          ? governanceActionFeedback
+                          : null
+                      }
+                      onSaveAndSubmit={() => {
+                        if (stablePowerId) {
+                          void handleSaveAndSubmitRestriction(
+                            governanceConsumerType,
+                            stablePowerId,
+                          );
+                        }
+                      }}
+                    />
 
                     <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3">
                       <div className="flex items-center justify-between gap-3">
@@ -3873,63 +4059,97 @@ export default function CharacterBuilderPage() {
     );
   }
 
-  async function syncDraftBeforeBackpackTransfer() {
+  async function saveCharacterDraft(): Promise<BuilderSaveResult> {
     if (!builderApiUrl || !draft || !canEdit) {
-      throw new Error("Character Builder is not ready to sync equipment.");
+      return { ok: false, error: "Character Builder is not ready to save." };
     }
-    if (!hasUnsavedEquipmentChanges) return;
     if (blockingSaveErrors.length > 0) {
-      throw new Error(`Resolve blocking Character Builder validation errors before giving items: ${blockingSaveErrors.join(" ")}`);
+      return {
+        ok: false,
+        error: `Resolve blocking Character Builder validation errors before saving: ${blockingSaveErrors.join(" ")}`,
+      };
     }
     if (!finalMaterializedBuilderData) {
-      throw new Error("Restriction drafts could not be materialized for equipment sync.");
+      return {
+        ok: false,
+        error: "Restriction drafts could not be materialized for save.",
+      };
     }
 
-    const res = await fetch(builderApiUrl, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        name: draft.name,
-        imageUrl: draft.imageUrl,
-        age: draft.age,
-        race: draft.race,
-        description: draft.description,
-        level: Number(draft.level),
-        builderData: finalMaterializedBuilderData,
-      }),
-    });
+    try {
+      const res = await fetch(builderApiUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: draft.name,
+          imageUrl: draft.imageUrl,
+          age: draft.age,
+          race: draft.race,
+          description: draft.description,
+          level: Number(draft.level),
+          builderData: finalMaterializedBuilderData,
+        }),
+      });
       const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
         character?: CharacterBuilderRecord;
         traitCatalog?: PlayerTraitDefinition[];
         backpackItems?: BuilderBackpackItem[];
         powerTuning?: PowerTuningSnapshot;
         characterBuilderTuning?: CharacterBuilderTuningSnapshot;
+        grossBudgetReadiness?: CharacterGrossBudgetReadiness;
         error?: string;
       };
-    if (!res.ok || !data.character) {
-      throw new Error(data.error ?? (await readApiError(res, "Failed to sync equipment.")));
-    }
-    const savedCharacter = data.character;
+      if (!res.ok || !data.character) {
+        return {
+          ok: false,
+          error: data.error ?? (await readApiError(res, "Failed to save character.")),
+        };
+      }
 
-    setPayload((current) =>
-      current
-        ? {
-            ...current,
-            character: savedCharacter,
-            traitCatalog: data.traitCatalog ?? current.traitCatalog,
-            backpackItems: data.backpackItems ?? current.backpackItems,
-            powerTuning: data.powerTuning ?? current.powerTuning,
-            characterBuilderTuning: data.characterBuilderTuning ?? current.characterBuilderTuning,
-          }
-        : current,
-    );
-    const savedDraft = makeDraft(savedCharacter);
-    setDraft(savedDraft);
-    setRestrictionDrafts(rehydratePlayerPowerRestrictionDrafts(savedDraft.builderData));
-    setRoleplayRestrictionStates(
-      rehydrateRoleplayAbilityRestrictionStates(savedDraft.builderData),
-    );
+      const savedCharacter = data.character;
+      setPayload((current) =>
+        current
+          ? {
+              ...current,
+              character: savedCharacter,
+              traitCatalog: data.traitCatalog ?? current.traitCatalog,
+              backpackItems: data.backpackItems ?? current.backpackItems,
+              powerTuning: data.powerTuning ?? current.powerTuning,
+              characterBuilderTuning: data.characterBuilderTuning ?? current.characterBuilderTuning,
+              grossBudgetReadiness: data.grossBudgetReadiness ?? current.grossBudgetReadiness,
+            }
+          : current,
+      );
+      const savedDraft = makeDraft(savedCharacter);
+      setDraft(savedDraft);
+      setRestrictionDrafts(rehydratePlayerPowerRestrictionDrafts(savedDraft.builderData));
+      setRoleplayRestrictionStates(
+        rehydrateRoleplayAbilityRestrictionStates(savedDraft.builderData),
+      );
+      const governance = await loadGovernance();
+      return {
+        ok: true,
+        character: savedCharacter,
+        governance,
+        grossBudgetReadiness: data.grossBudgetReadiness ?? grossBudgetReadiness,
+      };
+    } catch (saveError) {
+      return {
+        ok: false,
+        error: saveError instanceof Error ? saveError.message : "Failed to save character.",
+      };
+    }
+  }
+
+  async function syncDraftBeforeBackpackTransfer() {
+    if (!builderApiUrl || !draft || !canEdit) {
+      throw new Error("Character Builder is not ready to sync equipment.");
+    }
+    if (!hasUnsavedEquipmentChanges) return;
+    const result = await saveCharacterDraft();
+    if (!result.ok) throw new Error(result.error);
   }
 
   async function handleBackpackTransfer(event: FormEvent<HTMLFormElement>) {
@@ -3980,68 +4200,117 @@ export default function CharacterBuilderPage() {
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!builderApiUrl || !draft || !canEdit) return;
-    if (blockingSaveErrors.length > 0) {
-      setError(`Resolve blocking Character Builder validation errors before saving: ${blockingSaveErrors.join(" ")}`);
-      return;
-    }
-    if (!finalMaterializedBuilderData) {
-      setError("Restriction drafts could not be materialized for save.");
-      return;
-    }
-
     setSaving(true);
     setError(null);
     setMessage(null);
+    setGovernanceActionFeedback(null);
     try {
-      const res = await fetch(builderApiUrl, {
-        method: "PATCH",
+      const result = await saveCharacterDraft();
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setMessage("Character details saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveAndSubmitRestriction(
+    consumerType: PlayerRestrictionConsumer,
+    consumerId: string,
+  ) {
+    const actionKey = getPlayerRestrictionGovernanceEntryKey(consumerType, consumerId);
+    setSaving(true);
+    setActiveGovernanceActionKey(actionKey);
+    setGovernanceActionFeedback(null);
+    setError(null);
+    setMessage(null);
+    try {
+      const saveResult = await saveCharacterDraft();
+      if (!saveResult.ok) {
+        setGovernanceActionFeedback({
+          key: actionKey,
+          kind: "error",
+          message: saveResult.error,
+        });
+        return;
+      }
+      if (!saveResult.governance) {
+        setGovernanceActionFeedback({
+          key: actionKey,
+          kind: "error",
+          message: "The Character saved, but governance status could not be reloaded. Nothing was submitted.",
+        });
+        return;
+      }
+
+      const authoritativeEntries = buildPlayerRestrictionGovernanceEntryMap(
+        saveResult.governance,
+      );
+      const authoritativeEntry = authoritativeEntries.get(actionKey) ?? null;
+      if (!authoritativeEntry) {
+        setGovernanceActionFeedback({
+          key: actionKey,
+          kind: "error",
+          message: "The saved Restriction could not be resolved by its stable identity. Nothing was submitted.",
+        });
+        return;
+      }
+
+      const res = await fetch(governanceApiUrl, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          name: draft.name,
-          imageUrl: draft.imageUrl,
-          age: draft.age,
-          race: draft.race,
-          description: draft.description,
-          level: Number(draft.level),
-          builderData: finalMaterializedBuilderData,
+          consumerType,
+          consumerId,
+          expectedSubmissionRevision: authoritativeEntry.submissionRevision,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
-        character?: CharacterBuilderRecord;
-        traitCatalog?: PlayerTraitDefinition[];
-        powerTuning?: PowerTuningSnapshot;
-        characterBuilderTuning?: CharacterBuilderTuningSnapshot;
+        governance?: PlayerRestrictionGovernanceReadEntry;
         error?: string;
+        code?: string;
       };
-      if (!res.ok || !data.character) {
-        throw new Error(data.error ?? (await readApiError(res, "Failed to save character.")));
+      if (!res.ok || !data.governance) {
+        if (
+          res.status === 409 ||
+          data.code === "STALE_SUBMISSION_REVISION" ||
+          data.code === "GOVERNANCE_CONCURRENCY_CONFLICT"
+        ) {
+          await loadGovernance();
+        }
+        setGovernanceActionFeedback({
+          key: actionKey,
+          kind: "error",
+          message: data.error ?? (await readApiError(res, "Failed to submit Restriction.")),
+        });
+        return;
       }
 
-      const savedCharacter = data.character;
-      setPayload((current) =>
-        current
-          ? {
-              ...current,
-              character: savedCharacter,
-              traitCatalog: data.traitCatalog ?? current.traitCatalog,
-              powerTuning: data.powerTuning ?? current.powerTuning,
-              characterBuilderTuning: data.characterBuilderTuning ?? current.characterBuilderTuning,
-            }
-          : current,
-      );
-      const savedDraft = makeDraft(savedCharacter);
-      setDraft(savedDraft);
-      setRestrictionDrafts(rehydratePlayerPowerRestrictionDrafts(savedDraft.builderData));
-      setRoleplayRestrictionStates(
-        rehydrateRoleplayAbilityRestrictionStates(savedDraft.builderData),
-      );
-      setMessage("Character details saved.");
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to save character.");
+      setGovernanceReadModel((current) => current
+        ? replacePlayerRestrictionGovernanceEntry(current, data.governance!)
+        : saveResult.governance
+          ? replacePlayerRestrictionGovernanceEntry(saveResult.governance, data.governance!)
+          : current);
+      await loadGovernance();
+      setGovernanceActionFeedback({
+        key: actionKey,
+        kind: "success",
+        message: "Restriction submitted for Game Director approval.",
+      });
+    } catch (actionError) {
+      setGovernanceActionFeedback({
+        key: actionKey,
+        kind: "error",
+        message: actionError instanceof Error
+          ? actionError.message
+          : "Failed to submit Restriction.",
+      });
     } finally {
+      setActiveGovernanceActionKey(null);
       setSaving(false);
     }
   }
@@ -4080,6 +4349,59 @@ export default function CharacterBuilderPage() {
           </span>
         ) : null}
       </div>
+
+      <section
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-readiness"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-100">Character Draft and Table Readiness</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              Readiness is derived for this Builder view and is not persisted.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className={`rounded border px-2 py-1 ${blockingSaveErrors.length === 0 ? "border-emerald-800 text-emerald-200" : "border-red-900 text-red-300"}`}>
+              {blockingSaveErrors.length === 0 ? "Draft can be saved" : "Draft cannot be saved"}
+            </span>
+            <span className={`rounded border px-2 py-1 ${tableReady ? "border-emerald-800 text-emerald-200" : "border-amber-800 text-amber-200"}`}>
+              {tableReady ? "Table-ready" : "Not table-ready"}
+            </span>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-2 text-xs text-zinc-300 sm:grid-cols-2">
+          <p>
+            Normal Power pool: {formatPowerNumber(grossBudgetReadiness.normalPowerTotalSpent)} / {formatPowerNumber(grossBudgetReadiness.normalPowerPool)}
+            {grossBudgetReadiness.normalPowerPoolOverspent ? " — overspent" : ""}
+          </p>
+          <p>
+            Signature Move pool: {formatPowerNumber(grossBudgetReadiness.signatureMoveTotalSpent)} / {formatPowerNumber(grossBudgetReadiness.signatureMovePool)}
+            {grossBudgetReadiness.signatureMovePoolOverspent ? " — overspent" : ""}
+          </p>
+        </div>
+        {governanceLoading ? (
+          <p className="mt-2 text-xs text-sky-300">Loading Restriction governance...</p>
+        ) : null}
+        {governanceLoadError ? (
+          <p className="mt-2 rounded border border-amber-700 bg-amber-950/30 p-2 text-xs text-amber-200" role="status">
+            Restriction governance status could not be loaded: {governanceLoadError}. The Character draft remains available.
+          </p>
+        ) : null}
+        {readinessOnlyErrors.length > 0 ? (
+          <div className="mt-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-300">Readiness-only issues</h3>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-amber-200">
+              {readinessOnlyErrors.map((readinessError) => (
+                <li key={readinessError}>{readinessError}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-zinc-500">
+              These issues do not disable Save. Restriction approval currently applies no Power or Signature Move credit.
+            </p>
+          </div>
+        ) : null}
+      </section>
 
       <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
         <summary className="cursor-pointer">
@@ -5110,6 +5432,28 @@ export default function CharacterBuilderPage() {
                 const roleplayRestrictionResolution = roleplayRestrictionState
                   ? resolveRoleplayAbilityRestrictionState(roleplayRestrictionState)
                   : null;
+                const stableRoleplayAbilityId = ability.id.trim() || null;
+                const roleplayGovernanceActionKey = stableRoleplayAbilityId
+                  ? getPlayerRestrictionGovernanceEntryKey(
+                      "ROLEPLAY_ABILITY",
+                      stableRoleplayAbilityId,
+                    )
+                  : null;
+                const roleplayGovernanceEntry = roleplayGovernanceActionKey
+                  ? governanceEntryMap.get(roleplayGovernanceActionKey) ?? null
+                  : null;
+                const materializedRoleplayAbility = finalMaterializedBuilderData
+                  ?.roleplayAbilities.find((candidate) => candidate.id === ability.id) ?? null;
+                const localRoleplayRestriction = materializedRoleplayAbility?.restriction ?? null;
+                const localRoleplayRestrictionFingerprint = localRoleplayRestriction
+                  ? createRestrictionFingerprint(localRoleplayRestriction)
+                  : null;
+                const roleplayGovernanceSummary = materializedRoleplayAbility
+                  ? formatRestrictionGovernanceSummary({
+                      definition: localRoleplayRestriction,
+                      entry: roleplayGovernanceEntry,
+                    })
+                  : `Restriction: ${roleplayRestrictionSummary}`;
                 return (
                   <article
                     key={ability.id}
@@ -5143,9 +5487,9 @@ export default function CharacterBuilderPage() {
                         </button>
                         <p
                           className="mt-1 px-3 text-[11px] text-zinc-500"
-                          data-roleplay-restriction-summary="true"
-                        >
-                          Restriction: {roleplayRestrictionSummary}
+                        data-roleplay-restriction-summary="true"
+                      >
+                          {roleplayGovernanceSummary}
                         </p>
                       </div>
                       <button
@@ -5637,6 +5981,34 @@ export default function CharacterBuilderPage() {
                         </p>
                       )}
                     </div>
+
+                    <PlayerRestrictionGovernancePanel
+                      consumerType="ROLEPLAY_ABILITY"
+                      consumerId={stableRoleplayAbilityId}
+                      consumerNoun="Ability"
+                      entry={roleplayGovernanceEntry}
+                      localDefinition={localRoleplayRestriction}
+                      localFingerprint={localRoleplayRestrictionFingerprint}
+                      materializationReady={materializedRoleplayAbility !== null}
+                      ordinaryValidationPasses={warnings.length === 0}
+                      grossPoolOverspent={false}
+                      canEdit={canEdit}
+                      governanceAvailable={Boolean(governanceReadModel && !governanceLoadError)}
+                      busy={saving || activeGovernanceActionKey === roleplayGovernanceActionKey}
+                      feedback={
+                        governanceActionFeedback?.key === roleplayGovernanceActionKey
+                          ? governanceActionFeedback
+                          : null
+                      }
+                      onSaveAndSubmit={() => {
+                        if (stableRoleplayAbilityId) {
+                          void handleSaveAndSubmitRestriction(
+                            "ROLEPLAY_ABILITY",
+                            stableRoleplayAbilityId,
+                          );
+                        }
+                      }}
+                    />
 
                     {warnings.length > 0 ? (
                       <ul className="list-disc space-y-1 rounded-lg border border-amber-900/70 bg-amber-950/20 p-3 pl-8 text-sm text-amber-200">

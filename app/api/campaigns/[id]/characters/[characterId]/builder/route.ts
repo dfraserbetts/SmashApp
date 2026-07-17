@@ -18,10 +18,11 @@ import {
 } from "@/lib/characterBuilder/core";
 import { summarizeEquipmentItem } from "@/lib/characterBuilder/equipment";
 import {
+  buildCharacterGrossBudgetReadiness,
   prepareCharacterPowerIdsForPersistence,
   signatureMovePointPool,
+  summarizeCharacterPowerValidation,
   synchronizeCharacterPowerCooldownCaches,
-  validateCharacterPowers,
 } from "@/lib/characterBuilder/powers";
 import { getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError } from "@/lib/powers/authoringRules";
 import { validateRawPlayerPowerRestrictionWrite } from "@/lib/restrictions/playerPowerEditorIntegration";
@@ -525,27 +526,29 @@ export async function PATCH(
       signatureMove: preparedPowerIds.signatureMove,
     };
     const validationLevel = level ?? builderContext.character.level;
+    const normalPowerValidation = summarizeCharacterPowerValidation({
+      level: validationLevel,
+      powers: builderData.powers,
+      tuningSnapshot: powerTuning,
+      playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
+      expectedTargetTeamContext,
+    });
+    const signatureMoveValidation = summarizeCharacterPowerValidation({
+      level: validationLevel,
+      powers: builderData.signatureMove ? [builderData.signatureMove] : [],
+      tuningSnapshot: powerTuning,
+      playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
+      powerPool: signatureMovePointPool(validationLevel),
+      powerPoolKind: "signature",
+      powerLabel: "Signature Move",
+      poolDescription: "Character Level x 20",
+      offencePressureMode: "reviewOnly",
+      expectedTargetTeamContext,
+    });
     const validationErrors = [
       ...validateBuilderData(builderData, validationLevel, traitCatalog),
-      ...validateCharacterPowers({
-        level: validationLevel,
-        powers: builderData.powers,
-        tuningSnapshot: powerTuning,
-        playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
-        expectedTargetTeamContext,
-      }),
-      ...validateCharacterPowers({
-        level: validationLevel,
-        powers: builderData.signatureMove ? [builderData.signatureMove] : [],
-        tuningSnapshot: powerTuning,
-        playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
-        powerPool: signatureMovePointPool(validationLevel),
-        powerPoolKind: "signature",
-        powerLabel: "Signature Move",
-        poolDescription: "Character Level x 20",
-        offencePressureMode: "reviewOnly",
-        expectedTargetTeamContext,
-      }),
+      ...normalPowerValidation.saveBlockingErrors,
+      ...signatureMoveValidation.saveBlockingErrors,
     ];
     if (validationErrors.length > 0) {
       return NextResponse.json({ error: validationErrors.join(" ") }, { status: 400 });
@@ -569,6 +572,10 @@ export async function PATCH(
       powers: synchronizedPowers.powers,
       signatureMove: synchronizedPowers.signatureMove,
     };
+    const grossBudgetReadiness = buildCharacterGrossBudgetReadiness({
+      normal: normalPowerValidation.summary,
+      signature: signatureMoveValidation.summary,
+    });
 
     const data: {
       name?: string;
@@ -618,6 +625,7 @@ export async function PATCH(
       backpackItems: await loadBuilderBackpackItems(campaignId, targetCharacterId),
       powerTuning,
       characterBuilderTuning,
+      grossBudgetReadiness,
     });
   } catch (error) {
     return toErrorResponse(error);

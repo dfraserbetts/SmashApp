@@ -14,7 +14,6 @@ import type { RestrictionIssue } from "@/lib/restrictions";
 import {
   PLAYER_RESTRICTION_CONSUMERS,
   type PlayerRestrictionConsumer,
-  type RestrictionLifecycleState,
   type RestrictionTier,
 } from "@/lib/restrictions/governance";
 import {
@@ -35,6 +34,11 @@ import {
   resolvePlayerRestrictionConsumer,
   type PlayerRestrictionConsumerResolution,
 } from "@/lib/restrictions/playerRestrictionConsumerResolver";
+import type {
+  CharacterRestrictionGovernanceReadModel,
+  PlayerRestrictionGovernanceHistoryEntry,
+  PlayerRestrictionGovernanceReadEntry,
+} from "@/lib/restrictions/governanceView";
 import { prisma } from "@/prisma/client";
 
 export const PRODUCTION_SELF_APPROVAL_POLICY: SelfApprovalPolicy = "UNRESOLVED";
@@ -63,57 +67,6 @@ type StoredGovernance = Prisma.PlayerRestrictionGovernanceGetPayload<{
 }>;
 
 type StoredGovernanceRow = Omit<StoredGovernance, "events">;
-
-export type PlayerRestrictionGovernanceHistoryEntry = Readonly<{
-  id: string;
-  action: "SUBMITTED" | "APPROVED" | "CHANGES_REQUESTED" | "APPROVAL_STALE";
-  fromLifecycle: RestrictionLifecycleState;
-  toLifecycle: RestrictionLifecycleState;
-  submissionRevision: number;
-  semanticFingerprint: string;
-  semanticDefinition: unknown;
-  semanticSnapshotStatus: "VALID" | "UNSUPPORTED";
-  selectedTier: RestrictionTier | null;
-  actorUserId: string;
-  notes: string | null;
-  createdAt: string;
-}>;
-
-export type PlayerRestrictionGovernanceReadEntry = Readonly<{
-  governanceId: string | null;
-  synthetic: boolean;
-  consumerType: PlayerRestrictionConsumer;
-  consumerId: string;
-  consumerName: string | null;
-  consumerIndex: number | null;
-  consumerPresence: PlayerRestrictionConsumerResolution["consumerPresence"];
-  semanticStatus: PlayerRestrictionConsumerResolution["semanticStatus"];
-  currentSemanticRestriction: unknown;
-  currentFingerprint: string | null;
-  submittedDefinition: unknown;
-  submittedSnapshotStatus: "VALID" | "UNSUPPORTED" | null;
-  submittedFingerprint: string | null;
-  approvedFingerprint: string | null;
-  submittedProposalMatchesLiveDefinition: boolean | null;
-  approvedProposalMatchesLiveDefinition: boolean | null;
-  storedLifecycle: RestrictionLifecycleState | null;
-  effectiveLifecycle: RestrictionLifecycleState;
-  approvalCurrent: boolean;
-  selectedTier: RestrictionTier | null;
-  submissionRevision: number;
-  submittedByUserId: string | null;
-  submittedAt: string | null;
-  reviewedByUserId: string | null;
-  reviewedAt: string | null;
-  history: readonly PlayerRestrictionGovernanceHistoryEntry[];
-  diagnosticIssues: readonly RestrictionIssue[];
-}>;
-
-export type CharacterRestrictionGovernanceReadModel = Readonly<{
-  campaignId: string;
-  characterId: string;
-  governance: readonly PlayerRestrictionGovernanceReadEntry[];
-}>;
 
 function serviceError(
   code: string,
