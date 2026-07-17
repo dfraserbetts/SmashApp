@@ -6,6 +6,7 @@ import type {
   PowerIntention,
 } from "@/lib/summoning/types";
 import { POWER_DEFENCE_MODE_OPTIONS } from "@/lib/powers/authoringRules";
+import { resolveExplicitNonAoeTargetCount } from "@/lib/powers/expectedTargetEstimation";
 import type { RadarAxes } from "@/lib/calculators/monsterOutcomeCalculator";
 import type {
   AugmentDebuffEconomicModifier,
@@ -3228,14 +3229,12 @@ function modifierExpectedTargetCount(
   packet: EffectPacket,
   canonicalRangeCategory: CanonicalRangeCategory,
 ): number | null {
-  if (getPacketApplyTo(packet) === "SELF" || canonicalRangeCategory === "self") return 1;
-  const override = packet.localTargetingOverride;
-  if (canonicalRangeCategory === "melee") {
-    return Math.max(1, asInt(override?.meleeTargets ?? power.meleeTargets, 1));
-  }
-  if (canonicalRangeCategory === "ranged") {
-    return Math.max(1, asInt(override?.rangedTargets ?? power.rangedTargets, 1));
-  }
+  const explicitNonAoeTargetCount = resolveExplicitNonAoeTargetCount({
+    power,
+    packet,
+    rangeCategory: canonicalRangeCategory,
+  });
+  if (explicitNonAoeTargetCount !== null) return explicitNonAoeTargetCount;
   const explicit = asRecord(packet.detailsJson).expectedTargetCount;
   return typeof explicit === "number" && Number.isFinite(explicit) && explicit > 0
     ? explicit

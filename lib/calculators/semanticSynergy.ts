@@ -320,9 +320,12 @@ function durationForAction(action: CombatAction): { turns: number; passive: bool
 }
 
 function expectedTargets(power: Power, packet: EffectPacket): number | null {
+  const estimated = estimatePowerPacketExpectedTargets({ power, packet });
+  if (estimated.calculationMode === "NON_AOE_AUTHORED_TARGETS") {
+    return estimated.expectedTargets;
+  }
   const explicit = Number(asRecord(packet.detailsJson).expectedTargetCount);
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
-  const estimated = estimatePowerPacketExpectedTargets({ power, packet });
   return estimated.expectedTargets;
 }
 

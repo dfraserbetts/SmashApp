@@ -84,6 +84,34 @@ function normalizedRangeCategory(value: unknown): string {
   return String(value ?? "").trim().toUpperCase();
 }
 
+export function resolveExplicitNonAoeTargetCount(params: {
+  power: Power;
+  packet: EffectPacket;
+  rangeCategory?: unknown;
+}): number | null {
+  const rangeCategory = normalizedRangeCategory(
+    params.rangeCategory ?? packetRangeCategory(params.power, params.packet),
+  );
+  const recipient = String(
+    params.packet.applyTo ?? asRecord(params.packet.detailsJson).applyTo ?? "PRIMARY_TARGET",
+  ).trim().toUpperCase();
+  if (recipient === "SELF" || rangeCategory === "SELF") return 1;
+  if (rangeCategory === "AOE") return null;
+  if (rangeCategory === "MELEE") {
+    return positiveInteger(
+      params.packet.localTargetingOverride?.meleeTargets ?? params.power.meleeTargets,
+      1,
+    );
+  }
+  if (rangeCategory === "RANGED") {
+    return positiveInteger(
+      params.packet.localTargetingOverride?.rangedTargets ?? params.power.rangedTargets,
+      1,
+    );
+  }
+  return 1;
+}
+
 export function getNaturalAoeOneAreaCapacity(input: ExpectedTargetGeometryInput): number | null {
   const shape = normalizedShape(input.shape);
   if (shape === "SPHERE") {
@@ -226,12 +254,17 @@ function asRecord(value: unknown): Record<string, unknown> {
 function packetRangeCategory(power: Power, packet: EffectPacket): string {
   const details = asRecord(packet.detailsJson);
   const primaryDetails = asRecord(power.effectPackets[0]?.detailsJson);
+  const local = packet.localTargetingOverride;
   return normalizedRangeCategory(
-    packet.localTargetingOverride?.aoeShape
+    local?.aoeShape
       ? "AOE"
-      : details.rangeCategory ??
+      : local?.rangedTargets != null || local?.rangedDistanceFeet != null
+        ? "RANGED"
+        : local?.meleeTargets != null
+          ? "MELEE"
+          : power.rangeCategories?.[0] ??
+        details.rangeCategory ??
         primaryDetails.rangeCategory ??
-        power.rangeCategories?.[0] ??
         (power.aoeShape ? "AOE" : ""),
   );
 }
@@ -245,8 +278,9 @@ export function estimatePowerPacketExpectedTargets(params: {
   const primaryDetails = asRecord(power.effectPackets[0]?.detailsJson);
   const rangeExtra = asRecord(primaryDetails.rangeExtra);
   const local = packet.localTargetingOverride;
+  const rangeCategory = packetRangeCategory(power, packet);
   return estimateExpectedTargets({
-    rangeCategory: packetRangeCategory(power, packet),
+    rangeCategory,
     shape: local?.aoeShape ?? power.aoeShape ?? rangeExtra.shape,
     sphereRadiusFeet: local?.aoeSphereRadiusFeet ?? power.aoeSphereRadiusFeet ?? rangeExtra.sphereRadiusFeet,
     coneLengthFeet: local?.aoeConeLengthFeet ?? power.aoeConeLengthFeet ?? rangeExtra.coneLengthFeet,
@@ -256,7 +290,7 @@ export function estimatePowerPacketExpectedTargets(params: {
     intention: packet.intention,
     hostility: packet.hostility,
     recipient: packet.applyTo ?? asRecord(packet.detailsJson).applyTo,
-    authoredTargetCount: asRecord(packet.detailsJson).expectedTargetCount,
+    authoredTargetCount: resolveExplicitNonAoeTargetCount({ power, packet, rangeCategory }),
     teamContext: params.teamContext,
   });
 }

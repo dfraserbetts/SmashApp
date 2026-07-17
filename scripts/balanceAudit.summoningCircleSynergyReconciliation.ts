@@ -62,6 +62,11 @@ const DATABASE_OPERATIONS = [
   "outcomeNormalizationConfigSet.findFirst",
   "monster.findMany",
 ] as const;
+const GAZZKILL_MONSTER_ID = "cmlfrpajh0000eswctslf0rsk";
+const GAZZKILL_RILE_POWER_ID = "cmpy3ilyj000ga0wco7830nmy";
+const GAZZKILL_RILE_PACKET_ID = "cmpy3im0y000ha0wcxpj0vza9";
+const DIRE_WOLF_HOWL_PACKET_ID = "9913a148-070c-4a86-b949-669ebfe8a25f";
+const WOLF_BERZERKER_IRON_SKIN_RIDER_PACKET_ID = "cmq6ey1ug000by0wcp63l68vt";
 
 const POWER_INCLUDE = {
   rangeCategories: { orderBy: { rangeCategory: "asc" as const } },
@@ -1207,6 +1212,29 @@ async function buildPayload() {
     const direWolf = namedAsset("dire wolf");
     const gazzkill = namedAsset("gazzkill");
     const wolfBerzerker = namedAsset("wolf berzerker");
+    const gazzkillRecord = monsters.find((monster) => monster.id === GAZZKILL_MONSTER_ID);
+    const gazzkillRilePower = gazzkillRecord?.powers.find(
+      (power) => power.id === GAZZKILL_RILE_POWER_ID,
+    );
+    const gazzkillRilePacket = gazzkillRilePower?.effectPackets.find(
+      (packet) => packet.id === GAZZKILL_RILE_PACKET_ID,
+    );
+    const gazzkillRileAuthority = gazzkill?.authority.find(
+      (entry) => entry.powerId === GAZZKILL_RILE_POWER_ID,
+    );
+    const gazzkillRileAvailability = gazzkill?.perPowerAvailability.find(
+      (entry) => entry.id === GAZZKILL_RILE_POWER_ID,
+    );
+    const gazzkillRileRuntime = gazzkill?.runtime.powers.find(
+      (power) => power.powerId === GAZZKILL_RILE_POWER_ID,
+    );
+    const remainingLegacyLevelThreeAugmentPacketIds = monsters
+      .filter((monster) => monster.level === 3)
+      .flatMap((monster) => monster.powers)
+      .flatMap((power) => power.effectPackets)
+      .filter((packet) => packet.intention === "AUGMENT" && packet.modifier == null)
+      .map((packet) => packet.id)
+      .sort();
     const genericSupportAssets = levelThreeAssets.filter((asset) => {
       const monster = monsters.find((candidate) => candidate.id === asset.monsterId);
       return monster?.powers.some((power) =>
@@ -1321,8 +1349,106 @@ async function buildPayload() {
         ),
       direWolfRemainsLegacy:
         Boolean(direWolf) && direWolf?.semanticSynergy.mode === "LEGACY_ONLY",
-      gazzkillRemainsLegacy:
-        Boolean(gazzkill) && gazzkill?.semanticSynergy.mode === "LEGACY_ONLY",
+      gazzkillStableMonsterIdentity:
+        gazzkillRecord?.id === GAZZKILL_MONSTER_ID &&
+        gazzkillRecord.name === "Gazzkill" &&
+        gazzkillRecord.level === 3 &&
+        gazzkillRecord.tier === "BOSS",
+      gazzkillRileStablePowerIdentity:
+        gazzkillRilePower?.id === GAZZKILL_RILE_POWER_ID &&
+        gazzkillRilePower.name === "Rile'em'up!" &&
+        gazzkillRilePower.sortOrder === 2,
+      gazzkillRileStablePacketIdentity:
+        gazzkillRilePacket?.id === GAZZKILL_RILE_PACKET_ID &&
+        gazzkillRilePacket.packetIndex === 0,
+      gazzkillRileUsesApprovedSemanticContract:
+        gazzkillRilePacket?.intention === "AUGMENT" &&
+        gazzkillRilePacket.hostility === "NON_HOSTILE" &&
+        gazzkillRilePacket.targetedAttribute === "ATTACK" &&
+        gazzkillRilePacket.diceCount === 2 &&
+        gazzkillRilePacket.potency === 1 &&
+        gazzkillRilePacket.modifier === 1,
+      gazzkillRileTargetContractPreserved:
+        gazzkillRilePower?.rangeCategories.length === 1 &&
+        gazzkillRilePower.rangeCategories[0]?.rangeCategory === "RANGED" &&
+        gazzkillRilePower.rangedTargets === 3 &&
+        gazzkillRilePower.rangedDistanceFeet === 30 &&
+        gazzkillRilePacket?.applyTo === "PRIMARY_TARGET" &&
+        asNumber(asRecord(gazzkillRilePacket.detailsJson).rangeValue) === 30 &&
+        asNumber(asRecord(asRecord(gazzkillRilePacket.detailsJson).rangeExtra).targets) === 3,
+      gazzkillRileTimingAndDependencyPreserved:
+        gazzkillRilePower?.descriptorChassis === "IMMEDIATE" &&
+        gazzkillRilePacket?.effectTimingType === "ON_CAST" &&
+        gazzkillRilePacket.effectTimingTurns === null &&
+        gazzkillRilePacket.effectDurationType === "UNTIL_TARGET_NEXT_TURN" &&
+        gazzkillRilePacket.effectDurationTurns === null &&
+        gazzkillRilePacket.secondaryDependencyMode === null &&
+        gazzkillRilePacket.triggerConditionText === null,
+      gazzkillRileEconomicAuthorityApproved:
+        gazzkillRileAuthority?.resolved === true &&
+        gazzkillRileAuthority.source === "ACTIVE_TUNING" &&
+        Math.abs(Number(gazzkillRileAuthority.basePowerValue) - 7.5) <= 0.000001,
+      gazzkillRileCooldownAuthorityApproved:
+        gazzkillRilePower?.cooldownTurns === 1 &&
+        gazzkillRileAvailability?.effectiveCooldownTurns === 1 &&
+        gazzkillRileAvailability.cooldownSource === "ACTIVE_TUNING" &&
+        gazzkillRileAvailability.unresolvedError === null,
+      gazzkillRileSemanticSynergyApproved:
+        gazzkill?.semanticSynergy.mode === "LEVEL_3_SEMANTIC" &&
+        gazzkillRecord?.synergyDie === "D6" &&
+        gazzkill.semanticSynergy.semanticPowerIds.length === 1 &&
+        gazzkill.semanticSynergy.semanticPowerIds[0] === GAZZKILL_RILE_POWER_ID &&
+        Math.abs(Number(gazzkill.semanticSynergy.rawSemanticSupport) - 6.75) <= 0.000001 &&
+        Math.abs(Number(gazzkill.finalSynergy) - 1.229711) <= 0.000001 &&
+        gazzkill.semanticSynergy.legalActivationTurns.length === 1 &&
+        gazzkill.semanticSynergy.legalActivationTurns[0]?.turns.join(",") === "1,3,5",
+      gazzkillRileNoLegacyMixedOrIdentityDiagnostics:
+        gazzkill?.semanticSynergy.diagnostics.every(
+          (diagnostic) =>
+            diagnostic.code !== "LEGACY_SYNERGY_MODEL" &&
+            diagnostic.code !== "MIXED_SEMANTIC_LEGACY_SYNERGY_UNSUPPORTED" &&
+            !diagnostic.code.includes("MISSING_IDENTITY") &&
+            !diagnostic.code.includes("COOLDOWN"),
+        ) === true,
+      gazzkillRileRuntimeHydrationPreserved:
+        gazzkillRileRuntime?.status === "SUPPORTED" &&
+        gazzkillRileRuntime.unsupported.length === 0 &&
+        gazzkillRileRuntime.warnings.length === 0 &&
+        gazzkillRileRuntime.actions.length === 1 &&
+        gazzkillRileRuntime.actions[0]?.kind === "buff" &&
+        gazzkillRileRuntime.actions[0]?.targetPolicy === "ally" &&
+        gazzkillRileRuntime.actions[0]?.targetCount === 3 &&
+        gazzkillRileRuntime.actions[0]?.diceCount === 2 &&
+        gazzkillRileRuntime.actions[0]?.potency === 1 &&
+        gazzkillRileRuntime.actions[0]?.modifier?.amount === 1 &&
+        gazzkillRileRuntime.actions[0]?.durationRounds === 1 &&
+        gazzkillRileRuntime.actions[0]?.semanticFormat === "augmentDebuffThreeFieldV1",
+      gazzkillNonSynergyAxesRemainUnderCurrentOwnership:
+        gazzkill?.radarAxes.physicalThreat === 0.00067 &&
+        gazzkill.radarAxes.mentalThreat === 0 &&
+        gazzkill.radarAxes.physicalSurvivability === 9.739823 &&
+        gazzkill.radarAxes.mentalSurvivability === 6.454624 &&
+        gazzkill.radarAxes.manipulation === 2.65 &&
+        gazzkill.radarAxes.mobility === 2.039084 &&
+        gazzkill.radarAxes.presence === 4.368786 &&
+        gazzkill.powerWarnings.length === 0,
+      gazzkillUnrelatedPowerAndPacketIdentitiesStable:
+        JSON.stringify(gazzkill?.powerIds) === JSON.stringify([
+          "cmpy3ilr3000ca0wcr0sx2pxj",
+          "cmpy3ilui000ea0wc20mjxfch",
+          GAZZKILL_RILE_POWER_ID,
+        ]) &&
+        JSON.stringify(gazzkill?.packetIds) === JSON.stringify([
+          "cmpy3ilss000da0wcp4pdjtoh",
+          "cmpy3ilwv000fa0wczdc38p9o",
+          GAZZKILL_RILE_PACKET_ID,
+        ]) &&
+        JSON.stringify(gazzkill?.modifiers) === JSON.stringify([null, null, 1]),
+      onlyApprovedLegacyLevelThreeAugmentsRemain:
+        JSON.stringify(remainingLegacyLevelThreeAugmentPacketIds) === JSON.stringify([
+          DIRE_WOLF_HOWL_PACKET_ID,
+          WOLF_BERZERKER_IRON_SKIN_RIDER_PACKET_ID,
+        ].sort()),
       wolfBerzerkerSelfPassiveExcluded:
         Boolean(wolfBerzerker) &&
         Number(wolfBerzerker?.semanticSynergy.rawSemanticSupport) === 0 &&
@@ -1356,7 +1482,7 @@ async function buildPayload() {
           rawSynergy: editorEquivalent.rawSynergy,
           canonicalPowerAxisVector: editorEquivalent.canonicalPowerAxisVector,
           effectivePowerAxisVector: editorEquivalent.effectivePowerAxisVector,
-        })}; courtMage=${JSON.stringify(courtMage ?? null)}`,
+        })}; courtMage=${JSON.stringify(courtMage ?? null)}; gazzkill=${JSON.stringify(gazzkill ?? null)}`,
       );
     }
     const requestedSet = new Set<string>(SAMPLE_NAMES);

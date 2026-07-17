@@ -606,6 +606,67 @@ near(bossMidpoint.rawSupport, 46.704, 1e-9, "Fixture 19 Boss midpoint raw suppor
 near(bossMidpoint.score, 5, 1e-8, "Fixture 19 Boss midpoint score");
 check("Boss uses capacity 2 without division", bossMidpoint.model.activeCapacity === 2);
 
+function explicitRangedBreadthPower(params: {
+  identity: string;
+  authoredTargets: number;
+  expectedTargetMetadata?: number;
+}): Power {
+  const authored = singlePower({
+    identity: params.identity,
+    diceCount: 2,
+    potency: 1,
+    modifier: 1,
+    duration: "UNTIL_TARGET_NEXT_TURN",
+    authoredTargets: params.authoredTargets,
+  });
+  const details = { ...authored.effectPackets[0]!.detailsJson };
+  if (params.expectedTargetMetadata === undefined) delete details.expectedTargetCount;
+  else details.expectedTargetCount = params.expectedTargetMetadata;
+  authored.effectPackets[0]!.detailsJson = details;
+  authored.intentions = authored.effectPackets;
+  return authored;
+}
+
+const explicitRangedSingle = runFixture({
+  id: "explicit-ranged-single-target",
+  powers: [explicitRangedBreadthPower({ identity: "Explicit Ranged Single", authoredTargets: 1 })],
+});
+const explicitRangedMissingMetadata = runFixture({
+  id: "explicit-ranged-three-target-missing-metadata",
+  powers: [explicitRangedBreadthPower({ identity: "Explicit Ranged Missing Metadata", authoredTargets: 3 })],
+});
+const explicitRangedLowMetadata = runFixture({
+  id: "explicit-ranged-three-target-low-metadata",
+  powers: [explicitRangedBreadthPower({ identity: "Explicit Ranged Low Metadata", authoredTargets: 3, expectedTargetMetadata: 1 })],
+});
+const explicitRangedHighMetadata = runFixture({
+  id: "explicit-ranged-three-target-high-metadata",
+  powers: [explicitRangedBreadthPower({ identity: "Explicit Ranged High Metadata", authoredTargets: 3, expectedTargetMetadata: 999 })],
+});
+near(
+  explicitRangedMissingMetadata.rawSupport,
+  explicitRangedSingle.rawSupport * 3,
+  1e-9,
+  "Explicit RANGED target count is applied exactly once",
+);
+check(
+  "Explicit RANGED missing, low, and high metadata all preserve authored breadth 3",
+  [explicitRangedMissingMetadata, explicitRangedLowMetadata, explicitRangedHighMetadata]
+    .every((fixture) => Math.abs(fixture.rawSupport - explicitRangedMissingMetadata.rawSupport) <= 1e-9),
+);
+check(
+  "Explicit RANGED metadata does not alter BPV",
+  [explicitRangedLowMetadata, explicitRangedHighMetadata]
+    .every((fixture) => fixture.basePowerValue === explicitRangedMissingMetadata.basePowerValue),
+);
+check(
+  "Explicit RANGED metadata does not alter non-Synergy ownership",
+  (Object.keys(explicitRangedMissingMetadata.radarAxes) as Array<keyof typeof explicitRangedMissingMetadata.radarAxes>)
+    .filter((axis) => axis !== "synergy")
+    .every((axis) =>
+      Math.abs(explicitRangedMissingMetadata.radarAxes[axis] - explicitRangedHighMetadata.radarAxes[axis]) <= 1e-12),
+);
+
 check("Invariant M1 < M3 < M5", simpleM1.rawSupport < routineM3.rawSupport && routineM3.rawSupport < strongM5.rawSupport);
 check("Invariant breadth 1 < 3 < 6", routineM3.rawSupport < threeTargetM3.rawSupport && threeTargetM3.rawSupport < sixTargetM3.rawSupport);
 check("Invariant two turns < four turns", routineM3.rawSupport < longM3.rawSupport);

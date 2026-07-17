@@ -139,12 +139,47 @@ equal(JSON.stringify(applyAutomaticExpectedTargetsToPower(legacy, fallbackTeam))
 const nonAoe = semanticAoe({ submitted: 2 });
 nonAoe.rangeCategories = ["RANGED"];
 nonAoe.aoeShape = null;
+nonAoe.rangedTargets = 3;
+nonAoe.rangedDistanceFeet = 30;
 nonAoe.effectPackets[0]!.detailsJson = {
   ...nonAoe.effectPackets[0]!.detailsJson,
   rangeCategory: "RANGED",
   rangeExtra: {},
 };
 equal(estimatePowerPacketExpectedTargets({ power: nonAoe, packet: nonAoe.effectPackets[0]!, teamContext: fallbackTeam }).calculationMode, "NON_AOE_AUTHORED_TARGETS", "Non-AoE preserves authored target behavior.");
+equal(estimatePowerPacketExpectedTargets({ power: nonAoe, packet: nonAoe.effectPackets[0]!, teamContext: fallbackTeam }).expectedTargets, 3, "Explicit RANGED breadth comes from the authored three-target structure.");
+for (const submitted of [undefined, 1, 999]) {
+  const explicitRanged = structuredClone(nonAoe);
+  if (submitted === undefined) delete explicitRanged.effectPackets[0]!.detailsJson.expectedTargetCount;
+  else explicitRanged.effectPackets[0]!.detailsJson.expectedTargetCount = submitted;
+  equal(
+    estimatePowerPacketExpectedTargets({ power: explicitRanged, packet: explicitRanged.effectPackets[0]!, teamContext: fallbackTeam }).expectedTargets,
+    3,
+    `Explicit RANGED breadth ignores ${submitted === undefined ? "missing" : String(submitted)} Expected Targets metadata.`,
+  );
+}
+const explicitSingleTarget = structuredClone(nonAoe);
+explicitSingleTarget.rangedTargets = 1;
+explicitSingleTarget.effectPackets[0]!.detailsJson.expectedTargetCount = 999;
+equal(
+  estimatePowerPacketExpectedTargets({ power: explicitSingleTarget, packet: explicitSingleTarget.effectPackets[0]!, teamContext: fallbackTeam }).expectedTargets,
+  1,
+  "Explicit one-target RANGED structure remains breadth 1 despite high metadata.",
+);
+const explicitSelf = structuredClone(nonAoe);
+explicitSelf.rangeCategories = [];
+explicitSelf.rangedTargets = null;
+explicitSelf.effectPackets[0]!.applyTo = "SELF";
+explicitSelf.effectPackets[0]!.detailsJson = {
+  ...explicitSelf.effectPackets[0]!.detailsJson,
+  rangeCategory: "SELF",
+  expectedTargetCount: 999,
+};
+equal(
+  estimatePowerPacketExpectedTargets({ power: explicitSelf, packet: explicitSelf.effectPackets[0]!, teamContext: fallbackTeam }).expectedTargets,
+  1,
+  "SELF breadth remains exactly 1 despite Expected Targets metadata.",
+);
 const unsupported = semanticAoe({ radius: 25 });
 const unsupportedResult = estimatePowerPacketExpectedTargets({ power: unsupported, packet: unsupported.effectPackets[0]!, teamContext: fallbackTeam });
 equal(unsupportedResult.calculationMode, "UNSUPPORTED_GEOMETRY", "Unsupported geometry fails diagnostically.");
