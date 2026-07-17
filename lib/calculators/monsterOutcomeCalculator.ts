@@ -45,6 +45,11 @@ import {
   type SelfAttackThreatMainAction,
   type SelfAttackThreatPowerEntry,
 } from "@/lib/calculators/selfAttackThreat";
+import {
+  computeLevel3SelfGuardSurvivability,
+  type SelfGuardSurvivabilityActiveSnapshots,
+  type SelfGuardSurvivabilityPassiveState,
+} from "@/lib/calculators/selfGuardSurvivability";
 
 export type { MonsterCalculatorArchetype };
 
@@ -3844,6 +3849,7 @@ type ResistGate = keyof DurabilityLaneBaseline["resistGateWeights"];
 
 type DurabilitySupplementalContributions = {
   power: number;
+  semanticGuard: number;
   trait: number;
   equipment: number;
   naturalAttack: number;
@@ -4276,8 +4282,8 @@ function baselineRelativeDurability(params: {
     resistContribution: actualProxy.prevention.resist,
     baselineResistContribution: baselineProxy.prevention.resist,
     supplementalContributions: params.supplemental,
-    powerContribution: params.supplemental.power,
-    defensivePowerContribution: params.supplemental.power,
+    powerContribution: params.supplemental.power + params.supplemental.semanticGuard,
+    defensivePowerContribution: params.supplemental.power + params.supplemental.semanticGuard,
     traitEquipmentContribution:
       params.supplemental.trait +
       params.supplemental.equipment +
@@ -4341,6 +4347,8 @@ export function computeMonsterOutcomes(
     naturalAttackRangeAxisBonuses?: Partial<RadarAxes>;
     powerContribution?: CanonicalPowerContribution | null;
     traitAxisBonuses?: Partial<TraitAxisBonuses>;
+    selfGuardSurvivabilityPassiveState?: SelfGuardSurvivabilityPassiveState;
+    selfGuardSurvivabilityActiveSnapshots?: SelfGuardSurvivabilityActiveSnapshots;
   },
 ): MonsterOutcomeProfile {
   const cfg = config;
@@ -4503,7 +4511,7 @@ export function computeMonsterOutcomes(
   );
   const expectedPhysicalPowerAttack = expectedPowerAttackContribution.axisVector.physicalThreat;
   const expectedMentalPowerAttack = expectedPowerAttackContribution.axisVector.mentalThreat;
-  const effectivePowerAxisVector = {
+  const selfAttackAdjustedPowerAxisVector = {
     ...powerAvailability.effectivePowerAxisVector,
     physicalThreat:
       expectedPhysicalPowerAttack > 0
@@ -4746,6 +4754,46 @@ export function computeMonsterOutcomes(
       mentalSurvivability: axisBudgetTargets.mentalSurvivability,
     },
   );
+  const durabilityBaselinePackage = resolveDurabilityBaselinePackage(cfg, monster);
+  const selfGuardResistCoverage = durabilityBaselinePackage
+    ? weightedResistCoverage(monster, durabilityBaselinePackage.physical).value
+    : 0;
+  const semanticSelfGuardSurvivabilityModel = computeLevel3SelfGuardSurvivability({
+    level: monster.level,
+    tier: monster.tier,
+    guardDieSides: dieSidesFromDieString(String(monster.guardDie)),
+    fortitudeDieSides: dieSidesFromDieString(String(monster.fortitudeDie)),
+    physicalDefenceDice: defensiveProfileContext.armorSkillDice,
+    dodgeDice: defensiveContribution.totals.authoredDodgeDice,
+    blockPerSuccess: defensiveContribution.totals.physicalBlockPerSuccess,
+    protection: defensiveProfileContext.totalPhysicalProtection,
+    resistCoverage: selfGuardResistCoverage,
+    powers: selfAttackThreatPowerEntries,
+    tuning: cfg.durabilityAxisTuning,
+    passiveState: opts?.selfGuardSurvivabilityPassiveState,
+    passiveActivationSourceSuccessesByPowerId:
+      opts?.selfGuardSurvivabilityActiveSnapshots,
+  });
+  const eligibleSelfDefencePowerIds = new Set(
+    semanticSelfGuardSurvivabilityModel.mode === "SEMANTIC"
+      ? semanticSelfGuardSurvivabilityModel.eligiblePowerIds
+      : [],
+  );
+  const excludedSelfDefenceCostSurvivability = powerAvailability.perPower.reduce(
+    (sum, entry) =>
+      entry.id && eligibleSelfDefencePowerIds.has(entry.id)
+        ? sum + Number(entry.effectivePowerAxisVector.physicalSurvivability ?? 0)
+        : sum,
+    0,
+  );
+  const effectivePowerAxisVector = {
+    ...selfAttackAdjustedPowerAxisVector,
+    physicalSurvivability: Math.max(
+      0,
+      selfAttackAdjustedPowerAxisVector.physicalSurvivability -
+        excludedSelfDefenceCostSurvivability,
+    ),
+  };
   const customLimitBreakAxisBonuses = computeCustomLimitBreakAxisBonuses(
     [
       {
@@ -4837,7 +4885,6 @@ export function computeMonsterOutcomes(
   const routedEquipmentMentalThreatBonus = hasMentalThreat
     ? equipmentAttackThreatBonus
     : 0;
-  const durabilityBaselinePackage = resolveDurabilityBaselinePackage(cfg, monster);
   const c14LegendaryDurabilityBonus = Boolean(monster.legendary) && !durabilityBaselinePackage
     ? {
         physicalSurvivability: axisBudgetTargets.physicalSurvivability * 0.25,
@@ -5012,6 +5059,9 @@ export function computeMonsterOutcomes(
         defensiveContribution,
         supplemental: {
           power: effectivePowerAxisVector.physicalSurvivability,
+          semanticGuard:
+            semanticSelfGuardSurvivabilityModel.semanticSupplementalRatio *
+            durabilityBaselinePackage.physical.expectedHp,
           trait: traitAxisBonuses.physicalSurvivability,
           equipment: equipmentModifierAxisBonuses.physicalSurvivability,
           naturalAttack:
@@ -5031,6 +5081,7 @@ export function computeMonsterOutcomes(
         defensiveContribution,
         supplemental: {
           power: effectivePowerAxisVector.mentalSurvivability,
+          semanticGuard: 0,
           trait: traitAxisBonuses.mentalSurvivability,
           equipment: equipmentModifierAxisBonuses.mentalSurvivability,
           naturalAttack:
@@ -5126,6 +5177,11 @@ export function computeMonsterOutcomes(
           excludedCostDerivedThreat: excludedSelfAttackCostThreat,
           model: semanticSelfAttackThreatModel,
         },
+        semanticSelfGuardSurvivabilityReplacement: {
+          excludedCostDerivedPhysicalSurvivability:
+            excludedSelfDefenceCostSurvivability,
+          model: semanticSelfGuardSurvivabilityModel,
+        },
       },
       nonPowerContribution: {
         axisVector: nonPowerContribution,
@@ -5186,6 +5242,7 @@ export function computeMonsterOutcomes(
       finalPreNormalizationAxes,
       semanticSynergyAxisModel,
       semanticSelfAttackThreatModel,
+      semanticSelfGuardSurvivabilityModel,
       normalizationBreakdown: {
         level,
         tierKey,
@@ -5242,6 +5299,7 @@ export function computeMonsterOutcomes(
         controlPressureAxisBaselineModel,
         semanticSynergyAxisModel,
         semanticSelfAttackThreatModel,
+        semanticSelfGuardSurvivabilityModel,
         pressureAxisBaselineModel,
         radarAxes,
       },

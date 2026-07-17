@@ -137,6 +137,7 @@ assert.equal(explicitSynergy.skipped.length, 0);
 const axesDefault = selectSuites({ mode: "axes", includePartial: false });
 assert.ok(axesDefault.selected.some((suite) => suite.id === "power-threat-monotonic-smoke"));
 assert.ok(axesDefault.selected.some((suite) => suite.id === "self-attack-threat-level-3-smoke"));
+assert.ok(axesDefault.selected.some((suite) => suite.id === "self-guard-survivability-level-3-smoke"));
 assert.ok(
   axesDefault.selected.some((suite) => suite.id === "control-pressure-axis-reconciliation"),
   "AVAILABLE Control Pressure reconciliation must run in axes mode without --include-partial.",
@@ -180,10 +181,11 @@ for (const requiredId of [
   "semantic-authoring-feedback-smoke",
   "semantic-synergy-level-3-smoke",
   "self-attack-threat-level-3-smoke",
+  "self-guard-survivability-level-3-smoke",
 ]) {
   assert.ok(quick.selected.some((suite) => suite.id === requiredId), `quick mode omitted ${requiredId}`);
 }
-assert.equal(quick.selected.length, 12, "quick mode must contain the twelve available baseline suites.");
+assert.equal(quick.selected.length, 13, "quick mode must contain the thirteen available baseline suites.");
 for (const reconciliationId of reconciliationIds) {
   assert.equal(
     quick.selected.some((suite) => suite.id === reconciliationId),
@@ -430,6 +432,17 @@ const selfAttackThreatSuite = BALANCE_BENCHMARK_REGISTRY.find(
 assert.equal(selfAttackThreatSuite?.compatibility, "AVAILABLE");
 assert.equal(selfAttackThreatSuite?.failureSeverity, "BLOCKER");
 assert.deepEqual(selfAttackThreatSuite?.modes, ["quick", "axes", "full", "changed"]);
+const selfGuardSurvivabilitySuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "self-guard-survivability-level-3-smoke",
+);
+assert.equal(selfGuardSurvivabilitySuite?.compatibility, "AVAILABLE");
+assert.equal(selfGuardSurvivabilitySuite?.failureSeverity, "BLOCKER");
+assert.deepEqual(selfGuardSurvivabilitySuite?.modes, ["quick", "axes", "full", "changed"]);
+assert.ok(
+  changed("lib/calculators/selfGuardSurvivability.ts").selected.some(
+    (suite) => suite.id === "self-guard-survivability-level-3-smoke",
+  ),
+);
 assert.ok(full.selected.some((suite) => suite.id === "synergy-reconciliation"));
 assert.equal(quick.selected.some((suite) => suite.id === "synergy-reconciliation"), false);
 assert.equal(
