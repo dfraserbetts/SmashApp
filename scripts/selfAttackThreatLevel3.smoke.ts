@@ -265,6 +265,7 @@ function runFixture(params: {
   tier?: MonsterTier;
   level?: number;
   passiveState?: SelfAttackThreatPassiveState;
+  passiveActivationSourceSuccessesByPowerId?: Readonly<Record<string, number>>;
   mainActions?: SelfAttackThreatMainAction[];
 }): SelfAttackThreatResult {
   const started = performance.now();
@@ -279,6 +280,8 @@ function runFixture(params: {
     aoeMultiplier: 1.3,
     atWillThreatAxisMultiplier: 6,
     passiveState: params.passiveState,
+    passiveActivationSourceSuccessesByPowerId:
+      params.passiveActivationSourceSuccessesByPowerId,
   });
   fixtures.push({ id: params.id, model, runtimeMs: performance.now() - started });
   return model;
@@ -331,6 +334,147 @@ const inactiveM4 = runFixture({
 near("7. Inactive Passive M4 delta", inactiveM4.fiveTurnDelta, 11.910787021, 0.000001);
 check("Prepared and Inactive Passive values differ", preparedM4.fiveTurnDelta > inactiveM4.fiveTurnDelta);
 near("Inactive Passive failure branches leave baseline Main harm intact", inactiveM4.fiveTurnHarmWithout, 17.5);
+
+const activeSnapshotPower = buff({
+  identity: "Active Snapshot Passive M4",
+  modifier: 4,
+  duration: "PASSIVE",
+  cooldown: 4,
+});
+const activeSnapshotPowerId = activeSnapshotPower.id!;
+const activeSnapshotM4 = runFixture({
+  id: "active-snapshot-passive-m4",
+  powers: [activeSnapshotPower],
+  passiveState: "ACTIVE_SNAPSHOT",
+  passiveActivationSourceSuccessesByPowerId: { [activeSnapshotPowerId]: 2 },
+});
+near("Active snapshot M4/P3 uses two stored successes as six initial stacks", activeSnapshotM4.fiveTurnDelta, 17.5);
+near("Active snapshot consumes no Main lane", activeSnapshotM4.fiveTurnHarmWithout, 17.5);
+near("Active snapshot applies deterministic stored-success harm without rerolling", activeSnapshotM4.fiveTurnHarmWith, 35);
+
+const activeSnapshotWithThreatPower = runFixture({
+  id: "active-snapshot-with-threat-power",
+  powers: [activeSnapshotPower, attackPower("Active Snapshot Competing Attack")],
+  passiveState: "ACTIVE_SNAPSHOT",
+  passiveActivationSourceSuccessesByPowerId: { [activeSnapshotPowerId]: 2 },
+});
+near("Active snapshot consumes no Power lane", activeSnapshotWithThreatPower.fiveTurnHarmWith, 56);
+
+const activeSnapshotOneSuccess = runFixture({
+  id: "active-snapshot-one-success",
+  powers: [activeSnapshotPower],
+  passiveState: "ACTIVE_SNAPSHOT",
+  passiveActivationSourceSuccessesByPowerId: { [activeSnapshotPowerId]: 1 },
+});
+check(
+  "Different stored success counts produce different deterministic results",
+  activeSnapshotOneSuccess.fiveTurnDelta < activeSnapshotM4.fiveTurnDelta,
+);
+
+const missingActiveSnapshot = runFixture({
+  id: "active-snapshot-missing",
+  powers: [activeSnapshotPower],
+  passiveState: "ACTIVE_SNAPSHOT",
+});
+check(
+  "Missing active snapshot successes fail closed",
+  missingActiveSnapshot.mode === "FAIL_CLOSED" &&
+    missingActiveSnapshot.diagnostics.some(
+      (diagnostic) => diagnostic.code === SELF_ATTACK_THREAT_DIAGNOSTIC.activeSnapshotMissingSuccesses,
+    ),
+);
+
+const invalidActiveSnapshot = runFixture({
+  id: "active-snapshot-invalid",
+  powers: [activeSnapshotPower],
+  passiveState: "ACTIVE_SNAPSHOT",
+  passiveActivationSourceSuccessesByPowerId: { [activeSnapshotPowerId]: 1.5 },
+});
+check(
+  "Invalid active snapshot successes fail closed",
+  invalidActiveSnapshot.mode === "FAIL_CLOSED" &&
+    invalidActiveSnapshot.diagnostics.some(
+      (diagnostic) => diagnostic.code === SELF_ATTACK_THREAT_DIAGNOSTIC.activeSnapshotInvalidSuccesses,
+    ),
+);
+
+const wrongIdentityActiveSnapshot = runFixture({
+  id: "active-snapshot-wrong-identity",
+  powers: [activeSnapshotPower],
+  passiveState: "ACTIVE_SNAPSHOT",
+  passiveActivationSourceSuccessesByPowerId: { "another-power": 2 },
+});
+check(
+  "Active snapshot data is keyed by stable Power identity",
+  wrongIdentityActiveSnapshot.mode === "FAIL_CLOSED" &&
+    wrongIdentityActiveSnapshot.diagnostics.some(
+      (diagnostic) =>
+        diagnostic.code === SELF_ATTACK_THREAT_DIAGNOSTIC.activeSnapshotMissingSuccesses &&
+        diagnostic.powerId === activeSnapshotPowerId,
+    ),
+);
+
+const secondActiveSnapshotPower = buff({
+  identity: "Second Active Snapshot Passive M2",
+  modifier: 2,
+  potency: 1,
+  duration: "PASSIVE",
+  cooldown: 4,
+});
+const twoActiveSnapshots = runFixture({
+  id: "active-snapshot-two-passives",
+  powers: [activeSnapshotPower, secondActiveSnapshotPower],
+  passiveState: "ACTIVE_SNAPSHOT",
+  passiveActivationSourceSuccessesByPowerId: {
+    [activeSnapshotPowerId]: 2,
+    [secondActiveSnapshotPower.id!]: 1,
+  },
+});
+check("Two Passive Powers retain independent active snapshots", twoActiveSnapshots.mode === "SEMANTIC");
+const missingSecondActiveSnapshot = runFixture({
+  id: "active-snapshot-missing-second-passive",
+  powers: [activeSnapshotPower, secondActiveSnapshotPower],
+  passiveState: "ACTIVE_SNAPSHOT",
+  passiveActivationSourceSuccessesByPowerId: { [activeSnapshotPowerId]: 2 },
+});
+check(
+  "One Passive snapshot cannot satisfy another Power",
+  missingSecondActiveSnapshot.mode === "FAIL_CLOSED" &&
+    missingSecondActiveSnapshot.diagnostics.some(
+      (diagnostic) => diagnostic.powerId === secondActiveSnapshotPower.id,
+    ),
+);
+
+const activeLinkedPower = buff({
+  identity: "Active Snapshot Linked M3 M2",
+  modifier: 3,
+  linkedModifier: 2,
+  linkedPotency: 2,
+  duration: "PASSIVE",
+  cooldown: 4,
+});
+const activeLinked = runFixture({
+  id: "active-snapshot-linked",
+  powers: [activeLinkedPower],
+  passiveState: "ACTIVE_SNAPSHOT",
+  passiveActivationSourceSuccessesByPowerId: { [activeLinkedPower.id!]: 2 },
+});
+const activeClampedPower = buff({
+  identity: "Active Snapshot Linked M3 M3",
+  modifier: 3,
+  linkedModifier: 3,
+  linkedPotency: 2,
+  duration: "PASSIVE",
+  cooldown: 4,
+});
+const activeClamped = runFixture({
+  id: "active-snapshot-clamped",
+  powers: [activeClampedPower],
+  passiveState: "ACTIVE_SNAPSHOT",
+  passiveActivationSourceSuccessesByPowerId: { [activeClampedPower.id!]: 2 },
+});
+near("Active snapshot linked packets inherit stored primary successes", activeLinked.fiveTurnDelta, 19.6);
+near("Active snapshot linked same-attribute modifiers remain clamped at +5", activeClamped.fiveTurnDelta, activeLinked.fiveTurnDelta);
 
 const linked = runFixture({
   id: "08-linked-m3-m2",

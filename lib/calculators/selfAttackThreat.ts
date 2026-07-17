@@ -16,6 +16,8 @@ export const SELF_ATTACK_THREAT_DIAGNOSTIC = {
   missingCooldownAuthority: "SELF_ATTACK_THREAT_MISSING_COOLDOWN_AUTHORITY",
   unsupportedLevel: "SELF_ATTACK_THREAT_UNSUPPORTED_LEVEL",
   noBaselineAttack: "SELF_ATTACK_THREAT_NO_BASELINE_ATTACK",
+  activeSnapshotMissingSuccesses: "SELF_ATTACK_THREAT_ACTIVE_SNAPSHOT_MISSING_SUCCESSES",
+  activeSnapshotInvalidSuccesses: "SELF_ATTACK_THREAT_ACTIVE_SNAPSHOT_INVALID_SUCCESSES",
 } as const;
 
 export type SelfAttackThreatDiagnosticCode =
@@ -51,7 +53,9 @@ export type SelfAttackThreatPowerEntry = {
   cooldownAuthority?: PowerCooldownAuthorityResult | null;
 };
 
-export type SelfAttackThreatPassiveState = "PREPARED_ACTIVE" | "INACTIVE";
+export type SelfAttackThreatPassiveState = "PREPARED_ACTIVE" | "INACTIVE" | "ACTIVE_SNAPSHOT";
+
+export type SelfAttackThreatActiveSnapshots = Readonly<Record<string, number>>;
 
 export type SelfAttackThreatResult = {
   mode: "NONE" | "SEMANTIC" | "FAIL_CLOSED";
@@ -706,6 +710,7 @@ function optimize(params: {
   dieSides: number;
   includeBuffs: boolean;
   passiveState: SelfAttackThreatPassiveState;
+  passiveActivationSourceSuccessesByPowerId: SelfAttackThreatActiveSnapshots;
   counters: OptimizerCounters;
 }): OptimizerValue {
   const memo = new Map<string, OptimizerValue>();
@@ -838,6 +843,19 @@ function optimize(params: {
         ),
       );
     }
+  } else if (params.includeBuffs && params.passiveState === "ACTIVE_SNAPSHOT") {
+    initialBranches = [{
+      probability: 1,
+      statuses: passivePowers.reduce(
+        (statuses, power) =>
+          applyBuff(
+            power,
+            statuses,
+            params.passiveActivationSourceSuccessesByPowerId[power.id]!,
+          ),
+        [] as StatusState[],
+      ),
+    }];
   }
   let total: OptimizerValue = { physical: 0, mental: 0, total: 0, activations: 0, powerActions: 0 };
   for (const branch of initialBranches) {
@@ -846,7 +864,9 @@ function optimize(params: {
       nextLegalTurns: {},
       statuses: branch.statuses,
       activePassivePowerIds:
-        params.passiveState === "PREPARED_ACTIVE" ? passivePowers.map((power) => power.id).sort() : [],
+        params.passiveState === "PREPARED_ACTIVE" || params.passiveState === "ACTIVE_SNAPSHOT"
+          ? passivePowers.map((power) => power.id).sort()
+          : [],
     });
     total = addValue(total, result, branch.probability);
   }
@@ -909,6 +929,7 @@ export function computeLevel3SelfAttackThreat(params: {
   aoeMultiplier: number;
   atWillThreatAxisMultiplier: number;
   passiveState?: SelfAttackThreatPassiveState;
+  passiveActivationSourceSuccessesByPowerId?: SelfAttackThreatActiveSnapshots;
 }): SelfAttackThreatResult {
   const startedAt = performance.now();
   const passiveState = params.passiveState ?? "PREPARED_ACTIVE";
@@ -929,6 +950,36 @@ export function computeLevel3SelfAttackThreat(params: {
       SELF_ATTACK_THREAT_DIAGNOSTIC.noBaselineAttack,
       "Semantic SELF Attack Threat requires a usable natural or equipped baseline attack.",
     );
+  }
+  const passiveActivationSourceSuccessesByPowerId =
+    params.passiveActivationSourceSuccessesByPowerId ?? {};
+  if (passiveState === "ACTIVE_SNAPSHOT" && extracted.mode === "SEMANTIC") {
+    for (const power of extracted.powers.filter(
+      (candidate) => candidate.passive && candidate.buffPackets.length > 0,
+    )) {
+      if (!Object.prototype.hasOwnProperty.call(passiveActivationSourceSuccessesByPowerId, power.id)) {
+        failClosed(
+          extracted.diagnostics,
+          SELF_ATTACK_THREAT_DIAGNOSTIC.activeSnapshotMissingSuccesses,
+          `Active Passive SELF Attack Augment ${power.id} lacks stored activation source successes.`,
+          power.id,
+        );
+        continue;
+      }
+      const storedSuccesses = passiveActivationSourceSuccessesByPowerId[power.id];
+      if (
+        !Number.isFinite(storedSuccesses) ||
+        !Number.isInteger(storedSuccesses) ||
+        storedSuccesses < 0
+      ) {
+        failClosed(
+          extracted.diagnostics,
+          SELF_ATTACK_THREAT_DIAGNOSTIC.activeSnapshotInvalidSuccesses,
+          `Active Passive SELF Attack Augment ${power.id} has invalid stored activation source successes.`,
+          power.id,
+        );
+      }
+    }
   }
   if (extracted.mode === "FAIL_CLOSED" || extracted.diagnostics.length > 0) {
     return emptyResult({
@@ -957,6 +1008,7 @@ export function computeLevel3SelfAttackThreat(params: {
     dieSides: params.dieSides,
     includeBuffs: false,
     passiveState,
+    passiveActivationSourceSuccessesByPowerId,
     counters,
   });
   const withBuffs = optimize({
@@ -965,6 +1017,7 @@ export function computeLevel3SelfAttackThreat(params: {
     dieSides: params.dieSides,
     includeBuffs: true,
     passiveState,
+    passiveActivationSourceSuccessesByPowerId,
     counters,
   });
   const rawPhysicalDifference = withBuffs.physical - without.physical;
