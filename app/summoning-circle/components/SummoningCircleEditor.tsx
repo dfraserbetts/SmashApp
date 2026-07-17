@@ -106,6 +106,8 @@ import {
   renderTraitTemplate,
   type WeaponProjection,
 } from "@/app/summoning-circle/components/MonsterBlockCard";
+import { RestrictionEditor } from "@/app/components/restrictions/RestrictionEditor";
+import { RestrictionReadOnly } from "@/app/components/restrictions/RestrictionReadOnly";
 import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
 import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
 import {
@@ -162,6 +164,16 @@ import {
   type MonsterTraitMechanicalEffectSummary,
 } from "@/lib/summoning/traitMechanics";
 import { readMonsterRestrictionFromDatabase } from "@/lib/restrictions/monsterPersistence";
+import { createRestrictionDraftFromDefinition } from "@/lib/restrictions/editorModel";
+import {
+  getMonsterPowerRestrictionDraftKey,
+  getMonsterPowerRestrictionSummaryLabel,
+  initializeMonsterPowerRestrictionDrafts,
+  materializeMonsterPowerRestrictionDrafts,
+  reconcileMonsterPowerRestrictionDrafts,
+  rehydrateMonsterPowerRestrictionDrafts,
+  type MonsterPowerRestrictionDraftMap,
+} from "@/lib/restrictions/monsterPowerEditorIntegration";
 
 type Props = {
   campaignId: string;
@@ -4219,6 +4231,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
   const [landingPreviewLoading, setLandingPreviewLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditableMonster | null>(null);
+  const [restrictionDrafts, setRestrictionDrafts] = useState<MonsterPowerRestrictionDraftMap>({});
   const [powerDiceCountChosen, setPowerDiceCountChosen] = useState<Record<string, boolean>>({});
   const [modifierConversionDrafts, setModifierConversionDrafts] = useState<
     Record<string, ModifierConversionDraft>
@@ -4425,6 +4438,29 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
   }, [editor]);
 
   const readOnly = !!editor && (editor.source === "CORE" || editor.isReadOnly);
+  const editorPowersForRestrictionDrafts = editor?.powers ?? null;
+  useEffect(() => {
+    if (!editorPowersForRestrictionDrafts) {
+      setRestrictionDrafts({});
+      return;
+    }
+    setRestrictionDrafts((current) => reconcileMonsterPowerRestrictionDrafts(
+      current,
+      editorPowersForRestrictionDrafts,
+    ));
+  }, [editorPowersForRestrictionDrafts]);
+  const restrictionMaterialization = useMemo(
+    () => editor && !readOnly
+      ? materializeMonsterPowerRestrictionDrafts(editor, restrictionDrafts, { campaignId })
+      : null,
+    [campaignId, editor, readOnly, restrictionDrafts],
+  );
+  const restrictionBlockingMessages = useMemo(
+    () => restrictionMaterialization && !restrictionMaterialization.ok
+      ? restrictionMaterialization.issues.map((issue) => issue.message)
+      : [],
+    [restrictionMaterialization],
+  );
   const editorImagePosX = clampImagePosition(editor?.imagePosX, DEFAULT_IMAGE_POS_X);
   const editorImagePosY = clampImagePosition(editor?.imagePosY, DEFAULT_IMAGE_POS_Y);
   const editorHasValidImageUrl = isHttpUrl(editor?.imageUrl);
@@ -4899,6 +4935,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
       const json = await res.json();
       const editable = toEditable(json);
       setEditor(editable);
+      setRestrictionDrafts(rehydrateMonsterPowerRestrictionDrafts(editable.powers));
       setCalculatorArchetype(normalizeCalculatorArchetype(editable.calculatorArchetype));
     },
     [campaignId],
@@ -6467,6 +6504,14 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
 
   const saveMonster = useCallback(async () => {
     if (!editor || readOnly) return;
+    if (!restrictionMaterialization?.ok) {
+      setError(
+        `Resolve blocking Monster Power Restriction errors before saving: ${restrictionBlockingMessages.join(" ")}`,
+      );
+      setSuccess(null);
+      return;
+    }
+    const materializedEditor = restrictionMaterialization.monster;
     setBusy(true);
     setError(null);
     setSuccess(null);
@@ -6478,7 +6523,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
         normalizedTags.push(canonical);
       }
       const normalizedEditor: EditableMonster = {
-        ...editor,
+        ...materializedEditor,
         calculatorArchetype,
         imageUrl: asNullableText(editor.imageUrl),
         imagePosX: clampImagePosition(editor.imagePosX, DEFAULT_IMAGE_POS_X),
@@ -6515,15 +6560,15 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
         armsItemId: asNullableId(editor.armsItemId),
         beltItemId: asNullableId(editor.beltItemId),
         attacks: editor.attacks.map((attack, index) => ({ ...attack, sortOrder: index })),
-        powers: applyAutomaticExpectedTargetsToPowers(editor.powers, {
+        powers: applyAutomaticExpectedTargetsToPowers(materializedEditor.powers, {
           source: "FALLBACK_STANDARD_TEAM_SIZE_4",
           totalTeamSize: 4,
         }),
       };
-      const isUpdate = !!editor.id;
+      const isUpdate = !!materializedEditor.id;
       const res = await fetch(
         isUpdate
-          ? `/api/summoning-circle/monsters/${editor.id}?campaignId=${encodeURIComponent(campaignId)}`
+          ? `/api/summoning-circle/monsters/${materializedEditor.id}?campaignId=${encodeURIComponent(campaignId)}`
           : `/api/summoning-circle/monsters?campaignId=${encodeURIComponent(campaignId)}`,
         {
           method: isUpdate ? "PUT" : "POST",
@@ -6533,13 +6578,16 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
       );
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
+      const authoritativeEditor = toEditable(json);
       hasDraftRef.current = false;
       setTagInput("");
       setTagSuggestions([]);
       setActiveTagIndex(-1);
       await refreshSummaries();
-      setSelectedId(String(json.id));
-      await refreshSelected(String(json.id));
+      setEditor(authoritativeEditor);
+      setRestrictionDrafts(rehydrateMonsterPowerRestrictionDrafts(authoritativeEditor.powers));
+      setCalculatorArchetype(normalizeCalculatorArchetype(authoritativeEditor.calculatorArchetype));
+      setSelectedId(String(authoritativeEditor.id));
       setSuccess("Monster saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
@@ -6551,8 +6599,9 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
     calculatorArchetype,
     editor,
     readOnly,
-    refreshSelected,
     refreshSummaries,
+    restrictionBlockingMessages,
+    restrictionMaterialization,
     resilienceValues,
     naturalMentalProtectionValue,
     naturalPhysicalProtectionValue,
@@ -6600,9 +6649,13 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
       );
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
+      const copiedEditor = toEditable(json);
       hasDraftRef.current = false;
       await refreshSummaries();
-      setSelectedId(String(json.id));
+      setEditor(copiedEditor);
+      setRestrictionDrafts(rehydrateMonsterPowerRestrictionDrafts(copiedEditor.powers));
+      setCalculatorArchetype(normalizeCalculatorArchetype(copiedEditor.calculatorArchetype));
+      setSelectedId(String(copiedEditor.id));
       setSuccess("Monster copied.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to copy");
@@ -6618,7 +6671,9 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
     setMonsterPickerQuery("");
     setSelectedId(null);
     setCalculatorArchetype("BALANCED");
-    setEditor(defaultMonster());
+    const nextMonster = defaultMonster();
+    setEditor(nextMonster);
+    setRestrictionDrafts(initializeMonsterPowerRestrictionDrafts(nextMonster.powers));
   }, []);
 
   const moveAttack = useCallback((fromIndex: number, toIndex: number) => {
@@ -8212,6 +8267,20 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
             {error}
           </div>
         )}
+        {!readOnly && restrictionBlockingMessages.length > 0 && (
+          <div
+            className="rounded border border-red-700/40 bg-red-950/20 p-2 text-sm text-red-200"
+            data-testid="monster-power-restriction-blocking-errors"
+            role="alert"
+          >
+            <p className="font-medium">Resolve Monster Power Restriction errors before saving:</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {restrictionBlockingMessages.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {success && (
           <div className="rounded border border-emerald-700/40 bg-emerald-950/20 p-2 text-sm text-emerald-200">
             {success}
@@ -8290,7 +8359,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                   ) : null}
                   <button
                     onClick={saveMonster}
-                    disabled={busy}
+                    disabled={busy || restrictionBlockingMessages.length > 0}
                     className="rounded bg-emerald-600 px-3 py-1 text-sm text-white hover:bg-emerald-500 disabled:opacity-60"
                   >
                     {busy ? "Saving..." : "Save"}
@@ -9890,6 +9959,15 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
               const powerKey = getPowerCollapseKey(power, i);
               const collapsed = !!collapsedPowerIds[powerKey];
               const powerName = power.name?.trim() || `Power ${i + 1}`;
+              const restrictionDraftKey = getMonsterPowerRestrictionDraftKey(power);
+              const storedRestrictionDraft = restrictionDraftKey
+                ? restrictionDrafts[restrictionDraftKey]
+                : undefined;
+              const restrictionDraft = storedRestrictionDraft
+                ?? createRestrictionDraftFromDefinition(power.restriction);
+              const restrictionSummary = !storedRestrictionDraft && !readOnly
+                ? "Invalid Restriction Draft"
+                : getMonsterPowerRestrictionSummaryLabel(restrictionDraft);
               const authoredPowerName = power.name?.trim() ?? "";
               const authoredPowerDescription = power.description?.trim() ?? "";
               const selectedRangeCategory = powerRangeState.category;
@@ -10514,6 +10592,15 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                       )}
                     </button>
 
+                    {collapsed && (
+                      <div
+                        className="shrink-0 rounded border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-[11px] text-zinc-300"
+                        data-testid="monster-power-collapsed-restriction-summary"
+                      >
+                        {restrictionSummary}
+                      </div>
+                    )}
+
                     {!readOnly && (
                       <div className="flex items-center gap-1">
                         <button
@@ -10600,6 +10687,42 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                     className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                   />
                   </label>
+                  </div>
+                  <div
+                    className="space-y-2 pt-2"
+                    data-testid="monster-power-whole-restriction"
+                  >
+                    <p className="text-xs text-zinc-400">
+                      This Restriction applies to the complete Power, not an individual effect packet.
+                    </p>
+                    {readOnly ? (
+                      <RestrictionReadOnly
+                        definition={power.restriction ?? null}
+                        consumerNoun="Power"
+                        idPrefix={`monster-power-restriction-${power.id ?? i}`}
+                        disabled
+                      />
+                    ) : (
+                      <RestrictionEditor
+                        draft={restrictionDraft}
+                        onDraftChange={(nextRestrictionDraft) => {
+                          if (!restrictionDraftKey) {
+                            setError("This Monster Power needs a stable identity before its Restriction can be edited.");
+                            return;
+                          }
+                          setRestrictionDrafts((current) => ({
+                            ...current,
+                            [restrictionDraftKey]: nextRestrictionDraft,
+                          }));
+                        }}
+                        consumerNoun="Power"
+                        disabled={busy}
+                        idPrefix={`monster-power-restriction-${power.id ?? i}`}
+                        onConfirmReplace={() => window.confirm(
+                          `Replace the existing Restriction on ${powerName}? The existing definition will be replaced when the Monster is saved.`,
+                        )}
+                      />
+                    )}
                   </div>
                   {showRangeSection && powerRangeSection}
                   {showDiceCountSection && diceCountSection}

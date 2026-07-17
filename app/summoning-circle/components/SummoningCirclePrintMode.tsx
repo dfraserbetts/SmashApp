@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { MonsterSummary, MonsterUpsertInput } from "@/lib/summoning/types";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 import { MonsterBlockCard, type WeaponProjection } from "@/app/summoning-circle/components/MonsterBlockCard";
+import { RestrictionReadOnly } from "@/app/components/restrictions/RestrictionReadOnly";
 import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
 import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
 
@@ -37,6 +38,40 @@ const PAGE_BREAK_STYLE: CSSProperties = {
   breakAfter: "page",
   pageBreakAfter: "always",
 };
+
+function MonsterPowerRestrictionPrintSections({
+  monster,
+}: {
+  monster: MonsterUpsertInput;
+}) {
+  return (
+    <section
+      className="sc-print-power-restrictions mt-3 space-y-2"
+      data-testid="monster-power-print-restrictions"
+    >
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        Power Restrictions
+      </h3>
+      {monster.powers.length === 0 ? (
+        <p className="text-xs text-zinc-500">No Powers.</p>
+      ) : (
+        monster.powers.map((power, powerIndex) => (
+          <div key={power.id ?? `${power.name}-${powerIndex}`} className="space-y-1">
+            <p className="text-xs font-semibold text-zinc-200">
+              {power.name.trim() || `Power ${powerIndex + 1}`}
+            </p>
+            <RestrictionReadOnly
+              definition={power.restriction ?? null}
+              consumerNoun="Power"
+              idPrefix={`monster-print-power-restriction-${power.id ?? powerIndex}`}
+              disabled
+            />
+          </div>
+        ))
+      )}
+    </section>
+  );
+}
 
 export function SummoningCirclePrintMode({ campaignId }: Props) {
   const [monsters, setMonsters] = useState<MonsterSummary[]>([]);
@@ -272,6 +307,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
                   printPage="COMPACT"
                   protectionTuning={protectionTuning}
                 />
+                <MonsterPowerRestrictionPrintSections monster={monster} />
               </div>
             </article>
           );
@@ -302,6 +338,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
                   printPage="PAGE2_POWER"
                   protectionTuning={protectionTuning}
                 />
+                <MonsterPowerRestrictionPrintSections monster={monster} />
               </div>
             </article>
           </div>
