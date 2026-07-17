@@ -140,7 +140,8 @@ Roleplay Ability costs and final contract privilege adjustments remain open.
 
 Restrictions, Power Burdens, And Blaze Status
 
-LOCKED SHARED AUTHORING AUTHORITY / PHASES 1-3 IMPLEMENTED. A Restriction
+LOCKED SHARED AUTHORING AND GOVERNANCE-ECONOMICS FOUNDATION / PHASES 1-3 AND
+PHASE 4A2 IMPLEMENTED. A Restriction
 is one atomic,
 enforceable, pre-existing, whole-Ability narrative eligibility condition. A
 Player Character Power, Roleplay Ability, or GD-authored Monster Power may have
@@ -152,7 +153,7 @@ descriptor separation, deterministic semantic fingerprints, and mechanical-
 definition/governance separation are locked in docs/02.
 
 Player-authored Restrictions use the Draft, Pending Game Director Approval,
-Approved, Rejected, and Approval Stale lifecycle. A valid GD-authored Monster
+Approved, Changes Requested, and Approval Stale lifecycle. A valid GD-authored Monster
 Restriction is immediately approved on save with authenticated provenance; it
 does not perform a Pending self-review and grants no Power Point discount, BPV
 reduction, threat-budget refund, or Effective Encounter Load. Direct edits to
@@ -178,16 +179,45 @@ Powers, the Signature Move, editable campaign Monster Powers, and Roleplay
 Abilities all use the shared editor. Invalid or incomplete drafts block save;
 Campaign-Custom and safe unsupported definitions remain read-only and
 preservable; core Monster Powers use read-only presentation; and ordinary
-Ability descriptors remain separate. Campaign-Custom authoring, Phase 4
-governance, approval and GD auto-approval provenance implementation, runtime and
-Combat Lab evaluation, economics, simulation, and Phase 6 surface polish and
-migration diagnostics remain deferred. The complete Restriction project is not
-production-complete.
+Ability descriptors remain separate.
 
-Exact standard template inventory,
-future enum spellings, specific pregen Restrictions, scenario
-assumptions, economic classifications, numeric bands, and credit values remain
-later work. Gross BPV and cooldown basis remain unchanged. Runtime eligibility
+The pure Phase 4A2 foundation is implemented. It defines the exact Player
+lifecycle and consumer keys, four ordered tier keys and labels, qualification
+doctrine, save/readiness and print-eligibility policy, deterministic future
+print-projection classifications, and a pure Player Power BPV-domain economic
+contract. It adds no governance persistence, lifecycle endpoint, Approval Panel,
+readiness field/UI, print filtering, active drawback tuning, or active discount
+application. Campaign-Custom authoring, approval and GD auto-approval provenance
+implementation, runtime and Combat Lab evaluation, simulation, and Phase 6
+surface polish and migration diagnostics remain deferred. The complete
+Restriction project is not production-complete.
+
+The ordinary Player tiers are `MATERIAL_LIMITATION` / Material Limitation at
+10%, `SUBSTANTIAL_LIMITATION` / Substantial Limitation at 20%, and
+`NARROW_AVAILABILITY` / Narrow Availability at 30% of unrestricted Gross BPV.
+`OATH_LIMITATION` / Oath Limitation sits above them and describes a defining,
+enforceable limitation expected to permit use only approximately two or three
+times across an entire campaign; its rate remains open. Standard Structured and
+Fully Custom Restrictions use the same tiers. The standard future combined
+Restriction-plus-Burden cap is 50% of Gross BPV, the minimum Net BPV floor is
+1 BPV, and final Net BPV rounds upward to the next 0.5 before the Player spend
+scalar and existing point ceiling apply. An independently qualifying Oath plus future Extreme
+Activation Cost may use an exceptional cap only after explicit GD qualification,
+but that finite cap remains open and the exception is never unlimited.
+
+No provisional credit exists. Draft and Pending builds may persist while gross-
+overspent but are not table-ready. Changes Requested and Approval Stale are also
+not table-ready; semantic edits immediately stale approval and suspend credit.
+Valid unrestricted content needs no Restriction approval for final print.
+Restricted Player Power, Signature Move, and Roleplay content is print-eligible
+only while its Restriction approval and fingerprint are current. The actual
+approved-content projection must later occur before budgets and
+CharacterSheetPreview, and is not integrated yet.
+
+Exact standard template inventory, specific pregen Restrictions, scenario
+assumptions, the Oath rate, exceptional combined cap, and Power Burden rates
+remain later work. Gross BPV, base cooldown, and gross-spend budget cooldown
+basis remain unchanged. Runtime eligibility
 law lives in docs/01, shared non-numeric authoring authority in docs/02, future
 Builder work in docs/03, implementation boundaries in docs/05, system
 sequencing in docs/08, and the Roleplay-only boundary in
@@ -206,8 +236,10 @@ remain based on the complete unrestricted Monster Power, and Combat Lab/runtime
 evidence for the exact matchup remains balance authority. Activation Cost and
 Backlash timing is locked in docs/01 and their non-numeric authoring architecture
 is locked in docs/02, but no Builder, runtime, database, calculator, Combat Lab,
-or simulation implementation is claimed. Player Character Restriction and
-Burden credits remain open. A future Willpower Activation Cost is reserved as
+or simulation implementation is claimed. Player Character Restriction rates are
+locked only for the three ordinary tiers; no credit is active until later server-
+side approval, persistence, and versioned tuning work exists. Oath and Burden
+rates remain open. A future Willpower Activation Cost is reserved as
 an authoring direction; its resource mechanics, magnitude, and Player Character
 economic credit are not finalized.
 
@@ -427,8 +459,9 @@ law until the owning active doc is updated with an explicit decision.
   Note: Campaign-local workflows are current; global protected asset policy is
   future work.
 - Spark and Restriction implementation scope.
-  Status: RESTRICTION SHARED AUTHORING PHASES 1-3 IMPLEMENTED / LATER PHASES,
-  SPECIFIC CONTENT, RUNTIME, AND NUMERIC CALIBRATION OPEN; SPARK OPEN.
+  Status: RESTRICTION SHARED AUTHORING PHASES 1-3 AND PHASE 4A2 PURE FOUNDATION
+  IMPLEMENTED / PERSISTENCE, ACTIVE ECONOMICS, PRINT INTEGRATION, LATER PHASES,
+  SPECIFIC CONTENT, AND RUNTIME OPEN; SPARK OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and
   docs/03_Builders_And_Implementation_Roadmap.txt.
   Note: Character Creator is still missing Spark. Player Power, Signature Move,
@@ -436,10 +469,14 @@ law until the owning active doc is updated with an explicit decision.
   live, and the Roleplay legacy cutover is complete. The three authoring modes,
   structured grammar and registry direction, V1 subjects and condition families,
   evaluation classes, governance separation, fingerprints, and consumer-specific
-  boundaries are locked. Exact standard template inventory, Campaign-Custom authoring,
-  governance, runtime and Combat Lab integration, specific content, Phase 6
-  polish and migration diagnostics, economic classifications, and numeric
-  credits remain later work. The three governance questions listed in the
+  boundaries are locked. Phase 4A2 additionally locks the exact lifecycle and
+  four-tier domain, ordinary 10%/20%/30% rates, BPV-domain formula, standard
+  50% combined cap, 1 BPV floor, upward 0.5 rounding, readiness separation, and
+  print-eligibility policy as pure code. Exact standard template inventory,
+  Campaign-Custom authoring, governance persistence/actions, Approval Panel,
+  active tuning/economics, print projection integration, runtime and Combat Lab
+  integration, specific content, and Phase 6 polish remain later work. The Oath
+  rate, exceptional cap, and three governance questions listed in the
   status section above remain explicitly unresolved.
 - Transformation/Summoning/object/structure/machine/mount builder scopes.
   Status: OPEN.

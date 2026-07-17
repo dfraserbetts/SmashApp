@@ -783,19 +783,21 @@ likely compound prose requiring correction, not one clean structured condition.
 
 Governance Separation And Fingerprints
 
-The conceptual player lifecycle is Draft, Pending Game Director Approval,
-Approved, Rejected, and Approval Stale. Exact future enum spellings may follow
-repository conventions. The semantic Restriction definition and governance
-record are separate objects; approval state, reviewer identity, timestamps,
+The pure player lifecycle keys are `DRAFT`, `PENDING_GD_APPROVAL`, `APPROVED`,
+`CHANGES_REQUESTED`, and `APPROVAL_STALE`, displayed as Draft, Pending Game
+Director Approval, Approved, Changes Requested, and Approval Stale. A later
+persistence enum may follow repository naming conventions, but Rejected is not
+the primary player-facing label. The semantic Restriction definition and
+governance record are separate objects; approval state, reviewer identity, timestamps,
 review notes, and future economic credit do not belong inside the definition.
 
 Player workflow is Draft, validation, submission, authenticated GD approval or
-rejection/return for correction. A direct edit to the approved semantic
+Changes Requested return for correction. A direct edit to the approved semantic
 definition makes approval stale. The client cannot manufacture approval;
-future submit, approve, and reject operations must be enforced server-side.
+future submit, approve, and Request Changes operations must be enforced server-
+side.
 Approval provenance should include lifecycle state, approved-definition
-fingerprint, submitted/reviewed times, authenticated reviewer, and review or
-rejection note.
+fingerprint, submitted/reviewed times, authenticated reviewer, and review note.
 
 A valid GD-authored Monster Restriction is immediately Approved on save with
 provenance from authenticated server context. It does not perform a Pending
@@ -816,12 +818,67 @@ object keys, normalize whitespace and absent/null fields consistently, avoid
 nondeterministic object/array ordering, survive save/load round trips, and
 change when semantic meaning changes.
 
+Tier, Readiness, And Print-Eligibility Foundation
+
+No Restriction is absence and has no tier. Player Power, Signature Move, and
+Roleplay governance share these ordered tier keys and labels:
+
+- `MATERIAL_LIMITATION` - Material Limitation;
+- `SUBSTANTIAL_LIMITATION` - Substantial Limitation;
+- `NARROW_AVAILABILITY` - Narrow Availability; and
+- `OATH_LIMITATION` - Oath Limitation.
+
+Material removes use in a recurring plausible class of scenes or imposes a
+meaningful precondition that cannot routinely be ignored. Substantial removes
+use across a broad strategically relevant context or requires costly, risky,
+uncertain, or time-sensitive setup that frequently changes decisions. Narrow
+means the Ability is normally unavailable and becomes usable only under
+distinctly limited circumstances that players or allies cannot routinely
+arrange. Oath sits above Narrow: eligibility is expected only approximately two
+or three times across an entire campaign and is tied to a defining oath,
+sacrifice, identity, relationship, revelation, event, or campaign-level
+circumstance with real narrative consequences and mechanical scarcity. The GD
+must judge campaign prevalence and enforceability; dramatic wording alone does
+not qualify.
+
+Reliable player/ally enabling reduces qualification according to remaining
+cost, risk, action tax, uncertainty, timing, and opportunity cost. Routine or
+trivial enabling removes qualification. GD-controlled conditions use expected
+actual campaign prevalence and are not severe merely because the GD has
+discretion. Cosmetic, guaranteed, irrelevant, or routinely self-satisfied
+conditions qualify for no tier. Standard Structured and Fully Custom use the
+same standard.
+
+Draft persistence and build readiness are separate. Valid Draft and Pending
+builds may save while gross-overspent, but unapproved credit never counts and
+Draft, Pending, Changes Requested, and Approval Stale are not table-ready.
+Malformed semantic data and unresolved legacy-review data remain true save
+blockers. Direct semantic edits stale approval and suspend credit immediately.
+Approved credit counts only while fingerprint, approval, and economic resolution
+are current. This is final-sheet/table-use readiness policy, not combat-runtime
+Power-use blocking. No readiness Prisma field or UI exists yet.
+
+Valid unrestricted Player Power, Signature Move, and Roleplay content does not
+wait for Restriction approval and remains print-eligible subject to ordinary
+validation. Restricted content is print-eligible only while current `APPROVED`;
+Draft, Pending, Changes Requested, Approval Stale, malformed, unresolved legacy,
+and missing-governance restricted content is omitted from the future table-ready
+projection. Approved Roleplay remains print-eligible despite unavailable numeric
+economics. The editor/live preview may show draft content with status. Later
+Print Mode must deterministically project approved content before budgets and
+CharacterSheetPreview are calculated; CSS-only hiding is prohibited. Phase 4A2
+defines this pure projection contract but does not integrate Print Mode.
+
 Consumer, Persistence, Economic, And Runtime Boundaries
 
 Player Character Powers and Roleplay Abilities use player/GD governance. A
 Roleplay Ability receives no Activation Cost or Backlash. Neither consumer
-receives numeric Restriction credit in this phase. Gross BPV and cooldown basis
-remain unchanged.
+currently receives active numeric Restriction credit. Player Power ordinary tier
+rates and the pure future BPV-domain calculation are locked below, but governance
+persistence, authenticated approval actions, versioned active tuning, and credit
+application do not yet exist. Roleplay receives tier classification without
+numeric credit until Roleplay numeric costing exists. Gross BPV and cooldown
+basis remain unchanged.
 
 Monster Powers are GD-authored. A Monster Restriction grants no Power Point
 discount, Gross BPV reduction, Net BPV discount, cooldown reduction, threat-
@@ -889,11 +946,15 @@ Abilities use the shared editor. Incomplete, invalid, malformed, missing, or
 cross-campaign drafts block save. Core/read-only Monster Powers use read-only
 presentation. Campaign-Custom and safe unsupported definitions remain read-only
 and preservable, and ordinary Ability descriptors remain separate.
-Campaign-Custom authoring, approval and GD auto-approval provenance
-implementation, a campaign-custom value database layer, governance, runtime
-evaluation, Combat Lab integration, economics, simulation, and Phase 6 surface
-polish and migration diagnostics remain absent. The complete Restriction project
-is not production-complete.
+The pure Phase 4A2 governance/economics foundation now exists in
+`lib/restrictions/governance.ts` and `lib/restrictions/economics.ts`, with no
+active integration. Campaign-Custom authoring, governance persistence,
+authenticated lifecycle actions, Approval Panel, GD auto-approval provenance,
+a campaign-custom value database layer, readiness storage/UI, active drawback
+tuning, credit application, print projection integration, runtime evaluation,
+Combat Lab integration, simulation, and Phase 6 surface polish and migration
+diagnostics remain absent. The complete Restriction project is not production-
+complete.
 A future
 runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
 exact enum names and implementation are separately authorized later work.
@@ -923,7 +984,7 @@ Activation Costs and Backlash are authored directly by the GD under structural
 validation and normal Monster edit permissions; this doctrine invents no
 separate approval lifecycle for them.
 
-Player Character Non-Numeric Economic Decomposition
+Player Character BPV-Domain Economic Foundation
 
 The following future credit architecture is scoped only to Player Character
 Powers. It is not a universal Monster rule. Potency is packet-local and is not
@@ -955,9 +1016,27 @@ one approved combined-credit cap, one approved minimum Net BPV floor, and one
 final rounding step. Restrictions and Burdens never reduce Gross BPV, Cooldown
 Basis, or derived cooldown pressure.
 
-Every Player Character rate, amount, severity, cap, floor, and rounding rule
-remains OPEN. This document creates no tuning row or numeric authority and no
-Monster economic credit.
+For Player Power and Signature Move Restrictions, Material, Substantial, and
+Narrow rates are respectively 0.10, 0.20, and 0.30 of unrestricted Gross BPV.
+The Oath rate remains open. The standard future combined Restriction-plus-Burden
+cap is 0.50 of Gross BPV. The minimum Net BPV floor is 1 BPV. After independent
+credits and the cap/floor, Net BPV rounds upward once to the next 0.5; the active Player
+spend scalar then applies and the existing final Player Point ceiling remains.
+Gross BPV, base cooldown, and gross-spend budget-share cooldown pressure remain
+unchanged.
+
+An independently qualifying Oath Limitation plus a future Extreme Activation
+Cost may exceed the standard cap only when both components independently qualify,
+the GD explicitly validates the rare campaign circumstances, and versioned
+tuning supplies one finite exceptional cap. The Oath rate, Extreme Activation
+Cost rate, and exceptional cap remain open. The exception is never unlimited,
+and labels alone create no authority.
+
+The pure foundation validates this complete future tuning shape and can resolve
+test-only generic inputs, but no production-complete tuning snapshot can exist
+until the Oath rate and exceptional cap are approved. This document creates no
+active tuning row, no discount application, no Burden implementation, and no
+Monster or Roleplay numeric credit.
 
 Activation Cost and Backlash require separate future tuning tables. For the
 same effect, magnitude, and duration, Activation Cost receives greater credit

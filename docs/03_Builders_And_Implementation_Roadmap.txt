@@ -788,7 +788,8 @@ coverage only and is not final pregen balance authority.
 
 Shared Restriction Authoring - Implementation Sequence
 
-LOCKED AUTHORING MODEL / PHASES 1-3 IMPLEMENTED. The shared editor serves Player
+LOCKED AUTHORING MODEL / PHASES 1-3 AND PHASE 4A2 PURE FOUNDATION IMPLEMENTED.
+The shared editor serves Player
 Character Powers, Roleplay Abilities, and GD-authored Monster Powers while
 respecting their different storage adapters. Later governance remains separate.
 
@@ -830,10 +831,39 @@ Player, Monster, and Roleplay consumer families):
 - use the shared component contract on all three consumer surfaces without
   carrying forward the legacy Roleplay control names as permanent UI.
 
-Phase 4 - Governance:
+Phase 4 - Governance and economics foundation:
 
-- implement player Draft, Pending Game Director Approval, Approved, Rejected,
-  and Approval Stale transitions with authenticated server-side authority;
+Phase 4A2 pure foundation is implemented:
+
+- define exact `DRAFT` / Draft, `PENDING_GD_APPROVAL` / Pending Game Director
+  Approval, `APPROVED` / Approved, `CHANGES_REQUESTED` / Changes Requested, and
+  `APPROVAL_STALE` / Approval Stale domain keys and exact Player Power, Signature
+  Move, Roleplay Ability, and separately classified Monster consumers;
+- define exact `MATERIAL_LIMITATION` / Material Limitation,
+  `SUBSTANTIAL_LIMITATION` / Substantial Limitation,
+  `NARROW_AVAILABILITY` / Narrow Availability, and `OATH_LIMITATION` / Oath
+  Limitation tier keys, labels, ordering, and qualification doctrine without
+  putting rates into the governance module;
+- define pure save/readiness, current-credit, print-eligibility, fingerprint-
+  staleness, and deterministic future print-projection policy;
+- permit valid Draft/Pending gross-overspent persistence while granting no
+  provisional credit and no table-ready status; keep malformed and unresolved
+  legacy data as save blockers; suspend approved credit immediately after a
+  semantic fingerprint change; and introduce no combat-runtime use blocking;
+- keep valid unrestricted content print-eligible without Restriction approval,
+  require current Approved governance for restricted Player/Signature/Roleplay
+  print inclusion, and defer actual pre-budget Print Mode projection;
+- define a pure versioned tuning contract and BPV-domain resolver with ordinary
+  rates 0.10/0.20/0.30, standard 0.50 combined cap, 1 BPV floor, and final upward
+  0.5 BPV rounding, while requiring but not inventing the open Oath rate and
+  exceptional cap; and
+- keep the foundation independent of React, Prisma, APIs, databases, active
+  tuning loaders, current Power costing/cooldown, and Print Mode integration.
+
+Later Phase 4 work must:
+
+- implement player Draft, Pending Game Director Approval, Approved, Changes
+  Requested, and Approval Stale transitions with authenticated server-side authority;
 - store governance separately from the semantic definition, bind approval to
   the normalized fingerprint, and record submitted/reviewed times, reviewer,
   and notes;
@@ -887,10 +917,14 @@ Phase 3 Standard Structured and Custom Narrative integration is complete for
 ordinary Player Powers, the Signature Move, editable campaign Monster Powers,
 and Roleplay Abilities. Campaign-Custom and safe unsupported definitions remain
 read-only and preservable; core Monster Powers use read-only presentation; and
-ordinary Ability descriptors remain separate. Campaign-Custom authoring,
-approval and GD auto-approval provenance implementation, a campaign-custom value
-database layer, governance, runtime and Combat Lab evaluation, economics,
-simulation, and Phase 6 surface polish and migration diagnostics remain absent.
+ordinary Ability descriptors remain separate. The Phase 4A2 pure governance,
+readiness, print-eligibility, and economic-domain foundation is complete.
+Campaign-Custom authoring, approval and GD auto-approval provenance
+implementation, a campaign-custom value database layer, governance persistence
+and lifecycle actions, Approval Panel, readiness storage/UI, active drawback
+tuning and discount application, print projection integration, runtime and
+Combat Lab evaluation, simulation, and Phase 6 surface polish and migration
+diagnostics remain absent.
 The complete Restriction project is not production-complete.
 
 The Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`, and
@@ -913,8 +947,10 @@ separate systems:
   and Backlash after initial execution, with Health, Major Injury, terminal
   Trial, and Activation-Cost-triggered Blaze ordering preserved.
 - Economic calibration still requires separately authorized Restriction,
-  Activation Cost, and Backlash classifications, caps, floors, rounding, and
-  versioned tuning authority for Player Character credit. Monster Restrictions,
+  Oath, Activation Cost, and Backlash rates, the finite exceptional cap, and
+  versioned active tuning authority for Player Character credit. The ordinary
+  Restriction rates, standard cap, floor, and rounding are locked in docs/02 but
+  are not active. Monster Restrictions,
   Activation Costs, and Backlash receive no economic, cooldown, threat-budget,
   Outcome Calculator, tier, encounter-budget, Effective Encounter Load, balance,
   or fairness credit.

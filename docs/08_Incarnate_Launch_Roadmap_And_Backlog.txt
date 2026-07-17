@@ -939,7 +939,7 @@ saved cost/cooldown fields remain unavailable. The focused authority, live
 variant inventory, circularity gate, evidence matrix, and unlock gates are in
 [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 
-P. Shared Restriction Authoring Model Locked - Numeric Classification Open
+P. Shared Restriction Governance And Economic Foundation Locked
 
 Earlier v0 testing exposed these requested authoring labels:
 
@@ -949,10 +949,25 @@ Earlier v0 testing exposed these requested authoring labels:
 - Harsh
 - Severe / Oath-Level
 
-These labels are prototype/migration evidence only. They are not the shared
-Restriction API, complete standard-template inventory, locked severity bands,
-approved economic classification, or numeric rates. They grant no automatic
-credit.
+These labels are prototype/migration evidence only and are not the shared API.
+The locked ordered tier inventory is now:
+
+- `MATERIAL_LIMITATION` / Material Limitation / 10% of unrestricted Gross BPV;
+- `SUBSTANTIAL_LIMITATION` / Substantial Limitation / 20%;
+- `NARROW_AVAILABILITY` / Narrow Availability / 30%; and
+- `OATH_LIMITATION` / Oath Limitation / numeric rate still open.
+
+No Restriction is absence and has no tier. Standard Structured and Fully Custom
+use the same tiers. Oath sits above Narrow and is expected to permit use only
+approximately two or three times across an entire campaign. It must express a
+defining oath, sacrifice, identity, relationship, revelation, event, or campaign-
+level circumstance with real narrative consequences and mechanical scarcity;
+normal player/ally preparation cannot make it routine, the GD must judge actual
+prevalence and enforceability, and dramatic wording alone does not qualify.
+Reliable enabling reduces qualification according to remaining cost, risk,
+action tax, uncertainty, timing, and opportunity cost; routine/trivial enabling
+removes qualification. Cosmetic, guaranteed, irrelevant, or routinely self-
+satisfied conditions receive no tier.
 
 The shared non-numeric authoring architecture is locked in docs/02 for Player
 Character Powers, Roleplay Abilities, and GD-authored Monster Powers. It permits
@@ -965,7 +980,7 @@ stable custom values, and separation of definition/governance/future economics
 are locked. Custom Narrative requires GD review and manual adjudication.
 
 Player-authored content uses Draft, Pending Game Director Approval, Approved,
-Rejected, and Approval Stale. A direct semantic-definition edit stales
+Changes Requested, and Approval Stale. A direct semantic-definition edit stales
 approval. A valid GD-authored Monster Restriction auto-approves on save with
 authenticated provenance and no performative Pending self-review. Monster
 Restrictions grant no Power Point discount, BPV reduction, threat refund,
@@ -1000,10 +1015,30 @@ Strong restriction:
 - "Only works on Agents of Morgoth."
 - Reason: narrow, campaign-relevant, often unavailable, table-visible.
 
-Legacy Severe / Oath-Level requests may remain useful playtest evidence, but the
-requested label grants no approval or credit. Broad use must trigger inspection
-of practical availability, reliable enabling, enforcement, and table preference
-rather than automatic economic treatment.
+Legacy Severe / Oath-Level requests may remain useful playtest evidence, but
+only the locked `OATH_LIMITATION` key and qualification doctrine are current.
+Selecting that key grants no approval or credit. Its numeric rate remains open.
+
+Player Power and Signature Move credit is BPV-domain: approved Restriction and
+future Burden credits independently anchor to unrestricted Gross BPV. Material,
+Substantial, and Narrow rates are 0.10, 0.20, and 0.30. Standard combined credit
+is capped at 0.50 of Gross BPV, the minimum Net BPV floor is 1 BPV, and final
+Net BPV rounds upward once to the next 0.5 before the Player spend scalar and
+existing point ceiling. Gross BPV, base cooldown, and gross-spend budget cooldown pressure do
+not change. A qualifying Oath plus future Extreme Activation Cost may use an
+explicit finite exceptional cap, but the Oath rate, Extreme rate, and exceptional
+cap remain open. Both components need independent GD qualification; the
+exception is never uncapped and labels never create authority.
+
+No provisional credit exists. Valid Draft and Pending builds may save while
+gross-overspent but are not table-ready. Changes Requested and Approval Stale
+are not table-ready; semantic edits suspend approved credit immediately.
+Malformed and unresolved legacy data remain save blockers. No combat-runtime
+Power-use block is added. Valid unrestricted content needs no Restriction
+approval for print, while restricted Player Power, Signature Move, and Roleplay
+content prints only with current Approved governance. Approved Roleplay remains
+print-eligible without numeric economics. Later Print Mode must project approved
+content before budgets and CharacterSheetPreview, not hide it with CSS.
 
 Restrictions may be drafted and manually reviewed. The shared editor is live for
 ordinary Player Powers, the Signature Move, editable campaign Monster Powers,
@@ -1014,15 +1049,19 @@ migrate, ambiguous values require deliberate review and block save, legacy
 controls are removed, and ordinary Roleplay target grammar derives only from
 Scope. Valid Player and Roleplay definitions persist through CharacterBuilderData
 and valid Monster definitions through Power.restrictionJson. Core/read-only
-Monster Powers use read-only Restriction presentation. Campaign-Custom and safe
+Monster Powers use read-only Restriction presentation. The pure Phase 4A2
+lifecycle/tier/readiness/print and BPV-economic foundation is implemented with
+deterministic tests. Campaign-Custom and safe
 unsupported definitions remain read-only and preservable, and ordinary Ability
-descriptors remain separate. Campaign-Custom authoring, governance, approval and
-provenance implementation, and Phase 6 surface polish and migration diagnostics
-remain deferred.
+descriptors remain separate. Campaign-Custom authoring, governance persistence
+and lifecycle actions, Approval Panel, readiness storage/UI, active drawback
+tuning and discount application, print projection integration, approval/GD auto-
+approval provenance implementation, and Phase 6 surface polish and migration
+diagnostics remain deferred.
 Manual prose, a selected label, or a stored percentage cannot approve or price
 itself. Complete standard-template coverage, specific pregen Restrictions,
-scenario assumptions, numeric classifications and values, runtime enforcement,
-Combat Lab execution, and simulation remain future work. The complete
+scenario assumptions, Oath/Power Burden rates and exceptional cap, runtime
+enforcement, Combat Lab execution, and simulation remain future work. The complete
 Restriction project is not production-complete.
 
 Restrictions do not add upside. If text says "only works on allies, but doubles
@@ -1978,14 +2017,17 @@ costing, descriptor, schema, or data change.
 
 Restrictions, Power Burdens, And Blaze Development Order
 
-LOCKED DEPENDENCY DIRECTION / RESTRICTION PHASES 1-3 IMPLEMENTED; LATER WORK
-PARKED. For these connected systems, use this intended order:
+LOCKED DEPENDENCY DIRECTION / RESTRICTION PHASES 1-3 AND PHASE 4A2 PURE
+FOUNDATION IMPLEMENTED; LATER WORK PARKED. For these connected systems, use
+this intended order:
 
 1. Continue the locked shared Restriction authoring model through the seven
    phases in docs/03. Domain, persistence adapters including Roleplay cutover,
-   and Standard/Custom Narrative UI are complete. Governance, campaign-custom
-   values, surface polish/migration diagnostics, and separately authorized
-   optional evaluation remain deferred.
+   and Standard/Custom Narrative UI are complete. The pure lifecycle, four-tier,
+   readiness/print, and BPV-economic foundation is complete. Governance
+   persistence/actions, active tuning/credit, print projection integration,
+   campaign-custom values, surface polish/migration diagnostics, and separately
+   authorized optional evaluation remain deferred.
 2. Structured Activation Cost and Backlash authoring.
 3. Separate descriptor integration.
 4. Player Character economic calibration and versioned tuning authority;
@@ -2001,19 +2043,21 @@ OPEN design, calibration, content, and implementation work:
 
 - complete standard Restriction template inventory beyond the locked V1
   subjects, condition-family direction, grammar, and registry contract;
-- exact Restriction severity bands and discount/credit rates;
+- Oath Limitation credit rate; the three ordinary tiers and rates are locked;
 - exact Activation Cost and Backlash type registries;
 - exact resource percentages and structured state severities;
 - complete Willpower mechanics, Willpower Activation Cost magnitude,
   affordability, credit, Blaze interaction, and temporary-Willpower treatment;
 - Activation Cost and Backlash credit rates;
-- combined drawback-credit cap, minimum Net BPV floor, and final rounding;
+- finite exceptional Oath-plus-Extreme-Activation-Cost cap; the standard 50%
+  cap, 1 BPV floor, and upward 0.5 BPV rounding are locked;
 - whether a GD may approve a Restriction on their own Player Character, whether
   broader non-Restriction character-build edits stale approval, and whether
   reliable-enabler or wider-context changes automatically stale approval;
 - governance storage and server endpoints under the locked provenance/fingerprint
   rules;
-- Campaign-Custom authoring and Phase 6 reference, print, accessibility, and
+- readiness persistence/UI, Campaign-Custom authoring, actual approved-content
+  Print Mode projection, and Phase 6 reference, print, accessibility, and
   migration-diagnostic surfaces;
 - specific pregen Restrictions, campaign values, and explicit scenario
   assumptions, including the preserved Gandalf-style playtest;

@@ -461,24 +461,55 @@ The conceptual approval lifecycle is locked:
 1. Draft.
 2. Pending Game Director Approval.
 3. Approved.
-4. Rejected.
+4. Changes Requested.
 5. Approval Stale.
 
-Exact future enum names are not locked. Draft may be saved for future Builder
-work but grants no credit and is not active approved character-sheet authority.
+The pure domain keys are `DRAFT`, `PENDING_GD_APPROVAL`, `APPROVED`,
+`CHANGES_REQUESTED`, and `APPROVAL_STALE`; a later persistence enum may follow
+repository conventions, but Changes Requested is the primary player-facing
+label. Draft may be saved for future Builder work but grants no credit and is
+not active approved character-sheet authority.
 Pending has been submitted for review but grants no credit and cannot be treated
 as finalized. Approved means an authenticated Game Director approved the exact
-semantic definition represented by its fingerprint. Rejected grants no credit,
-must be revised or removed, and should support a rejection reason. Approval
-Stale means the approved definition fingerprint no longer matches and requires
-review before approved authority can be claimed.
+semantic definition represented by its fingerprint. Changes Requested grants no
+credit, must be revised or removed, and requires a Player-facing review note.
+Approval Stale means the approved definition fingerprint no longer matches and
+requires review before approved authority can be claimed.
 
 The semantic Restriction definition, governance record, and any future economic
 classification are separate. Player selection and free text cannot approve
 themselves, and the client cannot manufacture approval. Provenance should record
 lifecycle state, approved-definition fingerprint, submitted/reviewed times,
-authenticated reviewer, and review/rejection note. Direct edits to the approved
+authenticated reviewer, and review note. Direct edits to the approved
 semantic definition stale approval.
+
+Roleplay uses the same ordered classification as Player Powers and Signature
+Moves: `MATERIAL_LIMITATION` / Material Limitation,
+`SUBSTANTIAL_LIMITATION` / Substantial Limitation,
+`NARROW_AVAILABILITY` / Narrow Availability, and `OATH_LIMITATION` / Oath
+Limitation. No Restriction is absence. Standard Structured and Fully Custom use
+the same qualification standard. Material removes use in a recurring plausible
+class of scenes; Substantial removes use across a broad strategically relevant
+context or requires consequential setup; Narrow is normally unavailable except
+under circumstances players/allies cannot routinely arrange; Oath is expected
+to become eligible only approximately two or three times across an entire
+campaign and must carry defining narrative consequence plus mechanical scarcity
+under explicit GD prevalence/enforceability judgement. Dramatic wording alone,
+cosmetic conditions, or routine enabling do not qualify.
+
+Roleplay records the selected tier and approval provenance but receives no
+numeric credit until Roleplay numeric costing exists. The Player Power
+10%/20%/30% rates, 1 BPV floor, and 0.5 BPV rounding are not Roleplay Potential
+values and must not be copied into a Roleplay resolver. Monster Restrictions
+remain outside the Player tier system and receive no numeric credit.
+
+Valid unrestricted Roleplay content needs no Restriction approval for print.
+Restricted Roleplay content is print-eligible only while current Approved;
+Draft, Pending, Changes Requested, Approval Stale, malformed, unresolved legacy,
+and missing-governance content is omitted from the future table-ready projection.
+Approved Roleplay is print-eligible despite unavailable economics. The actual
+pre-budget Print Mode projection, warning/count UI, readiness persistence, and
+approval workflow remain deferred.
 
 Whether a GD may approve a Restriction on their own Player Character, whether
 broader non-Restriction character-build edits stale approval, and whether
@@ -509,11 +540,12 @@ The fingerprint contract is locked in the shared authority: schema version,
 mode, template key/version, normalized parameters or Custom Narrative text, and
 campaign-value identity are semantic inputs; lifecycle, reviewer/timestamps,
 notes, UI state, descriptor-only formatting, and future economics are excluded.
-Exact future enum spellings, complete standard-template inventory, governance
-persistence and server endpoints, Campaign-Custom authoring, Phase 6 surface
-polish and migration diagnostics, and numeric classification/credits remain
-later work. This specification adds no approval field, schema, database workflow,
-economic resolver, or runtime behaviour.
+Complete standard-template inventory, governance persistence and server
+endpoints, Campaign-Custom authoring, Phase 6 surface polish and migration
+diagnostics, and numeric Roleplay credits remain later work. The pure shared
+lifecycle/tier/readiness/print policy exists, but this specification adds no
+approval field, schema, database workflow, active economic resolver, Print Mode
+filter, or runtime behaviour.
 
 ## Future Pure Resolver Contract
 
