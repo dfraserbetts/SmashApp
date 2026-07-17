@@ -104,9 +104,11 @@ Character Creator:
   Restriction authoring are live; the atomic Roleplay legacy cutover is complete.
 - The shared Restriction authoring model is locked for Player Powers, Roleplay
   Abilities, and GD-authored Monster Powers, and its pure Phase 1 domain
-  foundation, Phase 2 persistence, and Phase 3 Standard/Custom editor integration
-  are implemented across all three consumer families. Campaign-Custom authoring,
-  governance, Phase 6 polish and migration diagnostics, and optional evaluation
+  foundation, Phase 2 semantic persistence, and Phase 3 Standard/Custom editor
+  integration are implemented across all three consumer families. The Phase 4A2
+  pure governance/economic foundation and Phase 4B1 Player governance persistence
+  foundation also exist. Campaign-Custom authoring, lifecycle actions and
+  governance UI, Phase 6 polish and migration diagnostics, and optional evaluation
   implementation remain absent. Spark
   scope remains OPEN / NEEDS ARCHITECT DECISION, and Restriction economics,
   specific content, scenario assumptions, and preserved governance questions
@@ -788,10 +790,12 @@ coverage only and is not final pregen balance authority.
 
 Shared Restriction Authoring - Implementation Sequence
 
-LOCKED AUTHORING MODEL / PHASES 1-3 AND PHASE 4A2 PURE FOUNDATION IMPLEMENTED.
+LOCKED AUTHORING MODEL / PHASES 1-3, PHASE 4A2 PURE FOUNDATION, AND PHASE 4B1
+PLAYER GOVERNANCE PERSISTENCE FOUNDATION IMPLEMENTED.
 The shared editor serves Player
 Character Powers, Roleplay Abilities, and GD-authored Monster Powers while
-respecting their different storage adapters. Later governance remains separate.
+respecting their different storage adapters. Player governance persistence is
+separate from the live semantic definitions and future economics.
 
 Phase 1 - Shared domain foundation (implemented):
 
@@ -860,13 +864,32 @@ Phase 4A2 pure foundation is implemented:
 - keep the foundation independent of React, Prisma, APIs, databases, active
   tuning loaders, current Power costing/cooldown, and Print Mode integration.
 
+Phase 4B1 Player governance persistence foundation is implemented:
+
+- add exact Prisma enums and separate `PlayerRestrictionGovernance` current rows
+  plus append-only `PlayerRestrictionReviewEvent` history for Player Power,
+  Signature Move, and Roleplay Ability consumers only;
+- identify one current record by character, consumer type, and stable consumer
+  ID while leaving live semantic definitions in CampaignCharacter.builderData;
+- preserve the exact normalized current submitted proposal snapshot for queue
+  reads and the exact immutable semantic snapshot and fingerprint in every review
+  event;
+- persist lifecycle, submission revision, submitted/approved fingerprints,
+  selected tier, user IDs, timestamps, and notes without rates, BPV, credit,
+  scalar, tuning, cooldown, descriptor cache, or Monster provenance;
+- provide a pure Prisma-type-only adapter that validates locators, snapshots,
+  same-campaign references, fingerprints, current-row invariants, review-event
+  invariants, safe unsupported preservation, and immutable JSON serialization;
+  and
+- perform no backfill: existing semantic Restrictions received no governance
+  record, approval, reviewer, provenance, tier, or credit.
+
 Later Phase 4 work must:
 
 - implement player Draft, Pending Game Director Approval, Approved, Changes
   Requested, and Approval Stale transitions with authenticated server-side authority;
-- store governance separately from the semantic definition, bind approval to
-  the normalized fingerprint, and record submitted/reviewed times, reviewer,
-  and notes;
+- use the separate persistence foundation to implement authenticated actions
+  without mutating immutable submitted or review-event snapshots;
 - stale approval after a direct semantic-definition edit without prematurely
   deciding the three preserved wider-context governance questions; and
 - immediately approve valid GD-authored Monster Restrictions on save with
@@ -918,12 +941,15 @@ ordinary Player Powers, the Signature Move, editable campaign Monster Powers,
 and Roleplay Abilities. Campaign-Custom and safe unsupported definitions remain
 read-only and preservable; core Monster Powers use read-only presentation; and
 ordinary Ability descriptors remain separate. The Phase 4A2 pure governance,
-readiness, print-eligibility, and economic-domain foundation is complete.
-Campaign-Custom authoring, approval and GD auto-approval provenance
-implementation, a campaign-custom value database layer, governance persistence
-and lifecycle actions, Approval Panel, readiness storage/UI, active drawback
-tuning and discount application, print projection integration, runtime and
-Combat Lab evaluation, simulation, and Phase 6 surface polish and migration
+readiness, print-eligibility, and economic-domain foundation is complete. The
+Phase 4B1 Player governance relational persistence foundation is also complete,
+with current submitted snapshots and immutable review history separate from live
+builderData semantics and no fabricated legacy records or approvals.
+Campaign-Custom authoring, authenticated lifecycle actions, Player governance UI,
+approval and Monster GD auto-approval provenance implementation, a campaign-
+custom value database layer, Approval Panel, readiness storage/UI, active
+drawback tuning and discount application, print projection integration, runtime
+and Combat Lab evaluation, simulation, and Phase 6 surface polish and migration
 diagnostics remain absent.
 The complete Restriction project is not production-complete.
 

@@ -464,10 +464,10 @@ The conceptual approval lifecycle is locked:
 4. Changes Requested.
 5. Approval Stale.
 
-The pure domain keys are `DRAFT`, `PENDING_GD_APPROVAL`, `APPROVED`,
-`CHANGES_REQUESTED`, and `APPROVAL_STALE`; a later persistence enum may follow
-repository conventions, but Changes Requested is the primary player-facing
-label. Draft may be saved for future Builder work but grants no credit and is
+The domain and Phase 4B1 Prisma persistence keys are `DRAFT`,
+`PENDING_GD_APPROVAL`, `APPROVED`, `CHANGES_REQUESTED`, and `APPROVAL_STALE`;
+Changes Requested is the primary player-facing label. Draft may be saved for
+future Builder work but grants no credit and is
 not active approved character-sheet authority.
 Pending has been submitted for review but grants no credit and cannot be treated
 as finalized. Approved means an authenticated Game Director approved the exact
@@ -478,10 +478,16 @@ requires review before approved authority can be claimed.
 
 The semantic Restriction definition, governance record, and any future economic
 classification are separate. Player selection and free text cannot approve
-themselves, and the client cannot manufacture approval. Provenance should record
-lifecycle state, approved-definition fingerprint, submitted/reviewed times,
-authenticated reviewer, and review note. Direct edits to the approved
-semantic definition stale approval.
+themselves, and the client cannot manufacture approval. Phase 4B1 can persist a
+Roleplay Ability current governance row identified by character and stable
+Ability ID, plus immutable review events. The current submitted proposal and
+each event preserve exact normalized semantic snapshots and deterministic
+fingerprints separately from the mutable live builderData definition. Lifecycle,
+submission revision, selected tier, submitting/reviewing or acting user IDs,
+timestamps, and player-facing notes are persisted as governance evidence. No
+existing Roleplay Restriction received a fabricated governance row, approval,
+reviewer, or provenance. Direct edits to an approved semantic definition remain
+locked to stale approval, but no lifecycle action API performs that transition yet.
 
 Roleplay uses the same ordered classification as Player Powers and Signature
 Moves: `MATERIAL_LIMITATION` / Material Limitation,
@@ -497,8 +503,9 @@ campaign and must carry defining narrative consequence plus mechanical scarcity
 under explicit GD prevalence/enforceability judgement. Dramatic wording alone,
 cosmetic conditions, or routine enabling do not qualify.
 
-Roleplay records the selected tier and approval provenance but receives no
-numeric credit until Roleplay numeric costing exists. The Player Power
+The Player persistence model can record a Roleplay selected tier and approval
+provenance, but no lifecycle API or governance UI writes it yet and Roleplay
+receives no numeric credit until Roleplay numeric costing exists. The Player Power
 10%/20%/30% rates, 1 BPV floor, and 0.5 BPV rounding are not Roleplay Potential
 values and must not be copied into a Roleplay resolver. Monster Restrictions
 remain outside the Player tier system and receive no numeric credit.
@@ -508,7 +515,8 @@ Restricted Roleplay content is print-eligible only while current Approved;
 Draft, Pending, Changes Requested, Approval Stale, malformed, unresolved legacy,
 and missing-governance content is omitted from the future table-ready projection.
 Approved Roleplay is print-eligible despite unavailable economics. The actual
-pre-budget Print Mode projection, warning/count UI, readiness persistence, and
+pre-budget Print Mode projection, warning/count UI, readiness persistence,
+lifecycle APIs, Character Builder governance UI, campaign Approval Panel, and
 approval workflow remain deferred.
 
 Whether a GD may approve a Restriction on their own Player Character, whether
@@ -540,12 +548,13 @@ The fingerprint contract is locked in the shared authority: schema version,
 mode, template key/version, normalized parameters or Custom Narrative text, and
 campaign-value identity are semantic inputs; lifecycle, reviewer/timestamps,
 notes, UI state, descriptor-only formatting, and future economics are excluded.
-Complete standard-template inventory, governance persistence and server
-endpoints, Campaign-Custom authoring, Phase 6 surface polish and migration
-diagnostics, and numeric Roleplay credits remain later work. The pure shared
-lifecycle/tier/readiness/print policy exists, but this specification adds no
-approval field, schema, database workflow, active economic resolver, Print Mode
-filter, or runtime behaviour.
+Complete standard-template inventory, governance server endpoints/UI, Campaign-
+Custom authoring, Phase 6 surface polish and migration diagnostics, and numeric
+Roleplay credits remain later work. The pure shared lifecycle/tier/readiness/print
+policy and Phase 4B1 relational persistence shape exist, but no active approval
+workflow, readiness storage, economic resolver, Print Mode filter, or runtime
+behaviour exists. Oath rate and the exceptional combined cap remain open, and
+Monster authenticated provenance remains outside the Player persistence tables.
 
 ## Future Pure Resolver Contract
 

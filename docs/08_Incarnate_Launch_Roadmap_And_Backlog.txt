@@ -1053,11 +1053,17 @@ Monster Powers use read-only Restriction presentation. The pure Phase 4A2
 lifecycle/tier/readiness/print and BPV-economic foundation is implemented with
 deterministic tests. Campaign-Custom and safe
 unsupported definitions remain read-only and preservable, and ordinary Ability
-descriptors remain separate. Campaign-Custom authoring, governance persistence
-and lifecycle actions, Approval Panel, readiness storage/UI, active drawback
-tuning and discount application, print projection integration, approval/GD auto-
-approval provenance implementation, and Phase 6 surface polish and migration
-diagnostics remain deferred.
+descriptors remain separate. Phase 4B1 now provides separate relational current
+governance and immutable review-event persistence for Player Power, Signature
+Move, and Roleplay consumers. It stores the exact normalized submitted/event
+snapshots, lifecycle, revision, fingerprints, tier, user IDs, timestamps, and
+notes while leaving live semantics in builderData. No existing Restriction was
+backfilled or granted approval/provenance. Campaign-Custom authoring,
+authenticated lifecycle actions and Character Builder governance UI, Approval
+Panel, readiness storage/UI, active drawback tuning and discount application,
+print projection integration, Monster approval/GD auto-approval provenance
+implementation, and Phase 6 surface polish and migration diagnostics remain
+deferred.
 Manual prose, a selected label, or a stored percentage cannot approve or price
 itself. Complete standard-template coverage, specific pregen Restrictions,
 scenario assumptions, Oath/Power Burden rates and exceptional cap, runtime
@@ -2017,17 +2023,19 @@ costing, descriptor, schema, or data change.
 
 Restrictions, Power Burdens, And Blaze Development Order
 
-LOCKED DEPENDENCY DIRECTION / RESTRICTION PHASES 1-3 AND PHASE 4A2 PURE
-FOUNDATION IMPLEMENTED; LATER WORK PARKED. For these connected systems, use
+LOCKED DEPENDENCY DIRECTION / RESTRICTION PHASES 1-3, PHASE 4A2 PURE FOUNDATION,
+AND PHASE 4B1 PLAYER GOVERNANCE PERSISTENCE FOUNDATION IMPLEMENTED; LATER WORK
+PARKED. For these connected systems, use
 this intended order:
 
 1. Continue the locked shared Restriction authoring model through the seven
    phases in docs/03. Domain, persistence adapters including Roleplay cutover,
    and Standard/Custom Narrative UI are complete. The pure lifecycle, four-tier,
-   readiness/print, and BPV-economic foundation is complete. Governance
-   persistence/actions, active tuning/credit, print projection integration,
-   campaign-custom values, surface polish/migration diagnostics, and separately
-   authorized optional evaluation remain deferred.
+   readiness/print, and BPV-economic foundation is complete. Separate Player
+   governance current-row and immutable-event persistence is complete without a
+   backfill. Authenticated actions/UI, Monster provenance, active tuning/credit,
+   print projection integration, campaign-custom values, surface polish/migration
+   diagnostics, and separately authorized optional evaluation remain deferred.
 2. Structured Activation Cost and Backlash authoring.
 3. Separate descriptor integration.
 4. Player Character economic calibration and versioned tuning authority;
@@ -2054,8 +2062,9 @@ OPEN design, calibration, content, and implementation work:
 - whether a GD may approve a Restriction on their own Player Character, whether
   broader non-Restriction character-build edits stale approval, and whether
   reliable-enabler or wider-context changes automatically stale approval;
-- governance storage and server endpoints under the locked provenance/fingerprint
-  rules;
+- authenticated governance server endpoints and UI using the implemented Player
+  persistence foundation under the locked provenance/fingerprint rules; Monster
+  authenticated approval-on-save provenance remains separately deferred;
 - readiness persistence/UI, Campaign-Custom authoring, actual approved-content
   Print Mode projection, and Phase 6 reference, print, accessibility, and
   migration-diagnostic surfaces;

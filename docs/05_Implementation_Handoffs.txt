@@ -464,8 +464,8 @@ inspection against the locked Soldier attacks-to-defeat doctrine.
 
 Shared Restriction Authoring Implementation Handoff
 
-LOCKED AUTHORING AUTHORITY / PHASES 1-3 AND PHASE 4A2 PURE FOUNDATION
-IMPLEMENTED. The primary
+LOCKED AUTHORING AUTHORITY / PHASES 1-3, PHASE 4A2 PURE FOUNDATION, AND PHASE
+4B1 PLAYER GOVERNANCE PERSISTENCE FOUNDATION IMPLEMENTED. The primary
 shared model
 is owned by docs/02_Power_System_And_Costing.txt; commitment-time runtime law is
 owned by docs/01_Locked_Rules_And_Combat_Bible.txt; the mandatory seven-phase
@@ -508,8 +508,15 @@ Current implementation truth:
 - `lib/restrictions/governance.ts` and `lib/restrictions/economics.ts` now provide
   the pure Phase 4A2 lifecycle/tier/readiness/print policy and future BPV-domain
   economic contract. Deterministic smokes cover the current raw Print Mode seam.
-- Campaign-Custom authoring, governance persistence/actions, Approval Panel,
-  GD auto-approval provenance, a campaign-custom value database layer,
+- Phase 4B1 adds `PlayerRestrictionGovernance` current rows,
+  `PlayerRestrictionReviewEvent` immutable history, exact Prisma enums, a no-
+  backfill migration, and `lib/restrictions/governancePersistence.ts`. Live
+  Player/Signature/Roleplay semantics remain in builderData; current submitted
+  proposals and event snapshots are separate normalized copies bound to their
+  deterministic fingerprints. Existing Restrictions received no fabricated
+  row, approval, reviewer, provenance, tier, or credit.
+- Campaign-Custom authoring, authenticated governance actions and UI, Approval
+  Panel, Monster GD auto-approval provenance, a campaign-custom value database layer,
   readiness storage/UI, active drawback tuning/economics, Print Mode projection,
   runtime evaluation, Combat Lab integration, simulation, and Phase 6 surface
   polish and migration diagnostics remain absent. The complete Restriction
@@ -523,7 +530,7 @@ governance, (5) Campaign-Custom Structured values, (6) surface integration and
 polish, then (7) an optional evaluation foundation only after separate
 authorization. UI must not precede proof of the domain model.
 
-Phase 4A2 foundation handoff:
+Phase 4A2 and Phase 4B1 foundation handoff:
 
 - Lifecycle keys are `DRAFT`, `PENDING_GD_APPROVAL`, `APPROVED`,
   `CHANGES_REQUESTED`, and `APPROVAL_STALE`; Changes Requested is the primary
@@ -558,15 +565,24 @@ Phase 4A2 foundation handoff:
   Player print-readiness rule. Roleplay shares tiers but receives no numeric
   credit until its numeric costing exists.
 - Do not mistake the pure functions or test-only complete tuning fixtures for
-  active authority. Persistence, lifecycle APIs, Approval Panel, print filtering,
-  readiness storage/UI, production-complete drawback tuning, and active discount
-  application remain separately gated.
+  active authority. The relational persistence shape exists, but lifecycle APIs,
+  Character Builder governance UI, Approval Panel, print filtering, readiness
+  storage/UI, production-complete drawback tuning, economic resolution, and
+  active discount application remain separately gated.
 
 Persistence and migration requirements:
 
 - Keep Player Power, Signature Move, and Roleplay data in builderData JSON;
   normalize a versioned semantic definition on load and preserve it on save.
 - Do not migrate Player Powers to relational records.
+- Use the separate Player governance tables for one current row per character +
+  consumer type + stable consumer ID, the exact normalized current submitted
+  proposal snapshot, and immutable review-event snapshots. Persist lifecycle,
+  revision, fingerprints, tier, user IDs, timestamps, and notes only; never move
+  the live semantic definition or generated descriptor into governance.
+- Existing semantic Restrictions have no automatic governance record. Do not
+  manufacture Draft, approval, reviewer provenance, tier, or credit during
+  migration; later authenticated server integration must create/reconcile rows.
 - Keep Monster semantic Restriction definitions in the nullable relational
   Power.restrictionJson field. Database NULL is canonical absence. Do not create
   a MonsterRestriction model or player-economic Monster fields.
@@ -582,6 +598,9 @@ Trust and governance requirements:
 
 - Keep semantic definition, governance record, and future Player economics
   separate. The client cannot manufacture approval.
+- Treat current submitted and review-event semantic snapshots as immutable exact
+  normalized review evidence; verify deterministic fingerprints and explicit
+  campaign ownership before future writes.
 - Enforce player submit/approve/request-changes transitions server-side and bind
   approval to a deterministic normalized semantic fingerprint.
 - Direct semantic-definition edits stale approval. Do not decide whether GD

@@ -783,11 +783,11 @@ likely compound prose requiring correction, not one clean structured condition.
 
 Governance Separation And Fingerprints
 
-The pure player lifecycle keys are `DRAFT`, `PENDING_GD_APPROVAL`, `APPROVED`,
+The player lifecycle keys are `DRAFT`, `PENDING_GD_APPROVAL`, `APPROVED`,
 `CHANGES_REQUESTED`, and `APPROVAL_STALE`, displayed as Draft, Pending Game
-Director Approval, Approved, Changes Requested, and Approval Stale. A later
-persistence enum may follow repository naming conventions, but Rejected is not
-the primary player-facing label. The semantic Restriction definition and
+Director Approval, Approved, Changes Requested, and Approval Stale. The pure
+domain and Phase 4B1 Prisma persistence enums now use those exact keys; Rejected
+is not the primary player-facing label. The semantic Restriction definition and
 governance record are separate objects; approval state, reviewer identity, timestamps,
 review notes, and future economic credit do not belong inside the definition.
 
@@ -796,8 +796,10 @@ Changes Requested return for correction. A direct edit to the approved semantic
 definition makes approval stale. The client cannot manufacture approval;
 future submit, approve, and Request Changes operations must be enforced server-
 side.
-Approval provenance should include lifecycle state, approved-definition
-fingerprint, submitted/reviewed times, authenticated reviewer, and review note.
+The Phase 4B1 Player persistence foundation can store lifecycle state, current
+submitted and approved fingerprints, submitting/reviewing user IDs,
+submitted/reviewed times, selected tier, and player-facing review notes. It does
+not itself authenticate or execute lifecycle actions.
 
 A valid GD-authored Monster Restriction is immediately Approved on save with
 provenance from authenticated server context. It does not perform a Pending
@@ -874,9 +876,10 @@ Consumer, Persistence, Economic, And Runtime Boundaries
 Player Character Powers and Roleplay Abilities use player/GD governance. A
 Roleplay Ability receives no Activation Cost or Backlash. Neither consumer
 currently receives active numeric Restriction credit. Player Power ordinary tier
-rates and the pure future BPV-domain calculation are locked below, but governance
-persistence, authenticated approval actions, versioned active tuning, and credit
-application do not yet exist. Roleplay receives tier classification without
+rates and the pure future BPV-domain calculation are locked below. Separate
+Player governance persistence now exists, but authenticated approval actions,
+versioned active tuning, and credit application do not. Roleplay may persist the
+same tier classification without
 numeric credit until Roleplay numeric costing exists. Gross BPV and cooldown
 basis remain unchanged.
 
@@ -917,6 +920,21 @@ Restriction, including for existing rows. This creates no MonsterRestriction
 model and adds no governance, runtime, descriptor-cache, or player-economic
 fields to Monster Power.
 
+Phase 4B1 adds separate relational `PlayerRestrictionGovernance` and append-only
+`PlayerRestrictionReviewEvent` persistence for Player Power, Signature Move, and
+Roleplay Ability consumers only. One current row is identified by character,
+consumer type, and stable consumer ID. The current row may preserve the exact
+normalized submitted proposal snapshot for queue reads; every review event
+preserves the exact immutable normalized snapshot and deterministic fingerprint
+relevant to that event. Lifecycle, submission revision, submitted/approved
+fingerprints, selected tier, submitting/reviewing or acting user IDs, timestamps,
+and notes are governance data, not semantic or economic authority. Live semantic
+definitions remain in builderData and generated descriptor text is not stored as
+authority. Existing Restrictions received no manufactured governance row,
+approval, reviewer, provenance, tier, or credit. Monster authenticated approval-
+on-save provenance remains a separate deferred adapter and is not stored in these
+Player tables.
+
 Legacy Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`, and
 `restrictionText` are transitional migration input only. NONE becomes no
 Restriction and safe non-None data migrates during normalization. Ambiguous
@@ -946,15 +964,17 @@ Abilities use the shared editor. Incomplete, invalid, malformed, missing, or
 cross-campaign drafts block save. Core/read-only Monster Powers use read-only
 presentation. Campaign-Custom and safe unsupported definitions remain read-only
 and preservable, and ordinary Ability descriptors remain separate.
-The pure Phase 4A2 governance/economics foundation now exists in
-`lib/restrictions/governance.ts` and `lib/restrictions/economics.ts`, with no
-active integration. Campaign-Custom authoring, governance persistence,
-authenticated lifecycle actions, Approval Panel, GD auto-approval provenance,
-a campaign-custom value database layer, readiness storage/UI, active drawback
-tuning, credit application, print projection integration, runtime evaluation,
-Combat Lab integration, simulation, and Phase 6 surface polish and migration
-diagnostics remain absent. The complete Restriction project is not production-
-complete.
+The pure Phase 4A2 governance/economics foundation exists in
+`lib/restrictions/governance.ts` and `lib/restrictions/economics.ts`. Phase 4B1
+adds the Player relational models, no-backfill migration, and pure persistence-
+shape adapter; it activates no workflow or economics. Campaign-Custom authoring,
+authenticated lifecycle actions, Character Builder governance UI, Approval
+Panel, Monster GD auto-approval provenance, a campaign-custom value database
+layer, readiness storage/UI, active drawback tuning, credit application, print
+projection integration, runtime evaluation, Combat Lab integration, simulation,
+and Phase 6 surface polish and migration diagnostics remain absent. The Oath rate
+and exceptional combined cap remain open. The complete Restriction project is
+not production-complete.
 A future
 runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
 exact enum names and implementation are separately authorized later work.
