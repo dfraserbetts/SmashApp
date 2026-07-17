@@ -893,6 +893,16 @@ Pending proposals remain immutable; a saved/submitted semantic mismatch is
 visible and cannot be resubmitted while Pending. No provisional or active credit
 exists, and an approved tier remains classification only.
 
+Phase 4C2 adds GD-only campaign Approvals navigation and a server-authoritative
+Pending count. Its campaign review queue provides Pending, Changes Requested,
+Approval Stale, and Recently Approved views over immutable submitted proposals.
+Approval requires one of the four classification tiers; its Note to Player is
+optional. Request Changes requires a nonblank Note to Player. Submitted/live
+mismatch, safe unsupported definitions, orphaned consumers, and archived
+Characters remain visible and are handled without rewriting history or claiming
+approval eligibility. Recorded approval classification applies no current
+economic credit and changes neither spend nor cooldown.
+
 Valid unrestricted Player Power, Signature Move, and Roleplay content does not
 wait for Restriction approval and remains print-eligible subject to ordinary
 validation. Restricted content is print-eligible only while current `APPROVED`;
@@ -1009,13 +1019,16 @@ Phase 4C1 integrates Character Builder governance status/history and the save-
 before-submit workflow for Player Powers, Signature Moves, and Roleplay Abilities.
 It also permits otherwise valid gross-overspent drafts to persist and reports
 gross-budget and governance readiness as derived, non-persisted UI state.
-Campaign-Custom authoring, the campaign Approval Panel/pending queue, Monster GD
-auto-approval provenance, a campaign-custom value database layer, persistent
-readiness, active drawback tuning, credit application, print projection
-integration, runtime evaluation, Combat Lab integration, simulation, and Phase 6
-surface polish and migration diagnostics remain absent. Self-approval remains
-unresolved. The Oath rate and exceptional combined cap remain open. The complete
-Restriction project is not production-complete.
+Phase 4C2 adds the GD campaign Approval Panel, its server-authoritative Pending
+count, four review views, immutable proposal review, tier-gated approval, optional
+approval notes, and note-required Request Changes. Campaign-Custom authoring,
+Monster GD auto-approval provenance, a campaign-custom value database layer,
+persistent readiness, active drawback tuning, credit application, runtime
+evaluation, Combat Lab integration, simulation, and Phase 6 surface polish and
+migration diagnostics remain absent. Print Mode projection is the final remaining
+implementation phase of the current Player Restriction Governance beta. Self-
+approval remains unresolved. The Oath rate and exceptional combined cap remain
+open. The complete Restriction project is not production-complete.
 A future
 runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
 exact enum names and implementation are separately authorized later work.

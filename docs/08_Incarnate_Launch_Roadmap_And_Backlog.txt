@@ -1048,6 +1048,15 @@ mismatch is visible. Otherwise valid gross-overspent drafts can save; gross-
 budget and governance readiness are derived and not persisted. No provisional or
 active Restriction credit exists, and an approved tier is classification only.
 
+Phase 4C2 now provides GD-only campaign Approvals navigation with a server-
+authoritative Pending count and Pending, Changes Requested, Approval Stale, and
+Recently Approved views. The panel reviews immutable submitted proposals and
+history, requires tier selection before approval, allows optional approval notes,
+and requires a nonblank Note to Player for Request Changes. Mismatch, safe
+unsupported, orphaned, and archived proposals remain visible with truthful
+eligibility and lifecycle handling. Classification applies no current economic
+credit and changes neither spend nor cooldown.
+
 Restrictions may be drafted and manually reviewed. The shared editor is live for
 ordinary Player Powers, the Signature Move, editable campaign Monster Powers,
 and Roleplay Abilities. Standard Structured and Custom Narrative integration is
@@ -1075,11 +1084,13 @@ orphaned history, safe-unsupported approval blocking, and an explicit
 production `UNRESOLVED` same-submitter conflict are implemented. Phase 4C1 adds
 Character Builder governance status/history, stable-key mapping, save-before-
 submit/resubmit actions, Pending mismatch display, and derived draft-save versus
-table-readiness reporting. Campaign-Custom authoring, the campaign Approval Panel
-and pending queue, persistent readiness, active drawback tuning and discount
-application, print projection integration, Monster approval/GD auto-approval
-provenance implementation, and Phase 6 surface polish and migration diagnostics
-remain deferred. Self-approval remains unresolved.
+table-readiness reporting. Phase 4C2 adds the campaign Approval Panel/navigation,
+server-authoritative Pending count, four queue views, and tier/note-gated review
+actions. Campaign-Custom authoring, persistent readiness, active drawback tuning
+and discount application, Monster approval/GD auto-approval provenance
+implementation, and Phase 6 surface polish and migration diagnostics remain
+deferred. Print Mode projection is the final remaining implementation phase of
+the current Player Restriction Governance beta. Self-approval remains unresolved.
 Manual prose, a selected label, or a stored percentage cannot approve or price
 itself. Complete standard-template coverage, specific pregen Restrictions,
 scenario assumptions, Oath/Power Burden rates and exceptional cap, runtime
@@ -2041,8 +2052,8 @@ Restrictions, Power Burdens, And Blaze Development Order
 
 LOCKED DEPENDENCY DIRECTION / RESTRICTION PHASES 1-3, PHASE 4A2 PURE FOUNDATION,
 PHASE 4B1 PLAYER GOVERNANCE PERSISTENCE, PHASE 4B2 AUTHENTICATED LIFECYCLE, AND
-PHASE 4C1 CHARACTER BUILDER INTEGRATION IMPLEMENTED; LATER WORK PARKED. For these
-connected systems, use
+PHASE 4C1 CHARACTER BUILDER INTEGRATION AND PHASE 4C2 CAMPAIGN APPROVAL WORKFLOW
+IMPLEMENTED; LATER WORK PARKED. For these connected systems, use
 this intended order:
 
 1. Continue the locked shared Restriction authoring model through the seven
@@ -2051,10 +2062,12 @@ this intended order:
    readiness/print, and BPV-economic foundation is complete. Separate Player
    governance current-row and immutable-event persistence is complete without a
    backfill. Authenticated lifecycle actions and Character Builder governance/
-   derived-readiness UI are complete. The campaign Approval Panel/pending queue,
-   Monster provenance, active tuning/credit, print projection integration,
-   campaign-custom values, surface polish/migration diagnostics, and separately
-   authorized optional evaluation remain deferred.
+   derived-readiness UI are complete. The campaign Approval Panel/navigation,
+   server-authoritative Pending count, and four review views are complete. Monster
+   provenance, active tuning/credit, campaign-custom values, surface polish/
+   migration diagnostics, and separately authorized optional evaluation remain
+   deferred. Print Mode projection is the final remaining implementation phase
+   of the current Player Restriction Governance beta.
 2. Structured Activation Cost and Backlash authoring.
 3. Separate descriptor integration.
 4. Player Character economic calibration and versioned tuning authority;
@@ -2081,9 +2094,7 @@ OPEN design, calibration, content, and implementation work:
 - whether a GD may approve a Restriction on their own Player Character, whether
   broader non-Restriction character-build edits stale approval, and whether
   reliable-enabler or wider-context changes automatically stale approval;
-- campaign Approval Panel/navigation and campaign-wide pending queue using the
-  implemented authenticated governance services; Monster authenticated approval-
-  on-save provenance remains separately deferred;
+- Monster authenticated approval-on-save provenance remains separately deferred;
 - persistent readiness, Campaign-Custom authoring, actual approved-content Print
   Mode projection, and Phase 6 reference, print, accessibility, and migration-
   diagnostic surfaces;

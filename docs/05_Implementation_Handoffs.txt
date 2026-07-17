@@ -535,12 +535,19 @@ Current implementation truth:
   gross-budget and governance readiness derived rather than persisted. No
   provisional or active credit applies, and approved tiers are classification
   only.
-- Campaign-Custom authoring, the campaign Approval Panel and pending queue,
-  Monster GD auto-approval provenance, a campaign-custom value database layer,
-  persistent readiness, active drawback tuning/economics, Print Mode projection,
-  runtime evaluation, Combat Lab integration, simulation, and Phase 6 surface
-  polish and migration diagnostics remain absent. The complete Restriction
-  project is not production-complete.
+- Phase 4C2 adds GD-only campaign Approvals navigation, a server-authoritative
+  Pending count, and Pending, Changes Requested, Approval Stale, and Recently
+  Approved views. Review preserves the immutable submitted proposal and history;
+  approval requires a tier and accepts an optional note, while Request Changes
+  requires a nonblank Note to Player. Mismatched, safe-unsupported, orphaned, and
+  archived proposals remain visible with honest blockers. No current economic
+  credit, spend change, or cooldown change is applied.
+- Campaign-Custom authoring, Monster GD auto-approval provenance, a campaign-
+  custom value database layer, persistent readiness, active drawback tuning/
+  economics, runtime evaluation, Combat Lab integration, simulation, and Phase 6
+  surface polish and migration diagnostics remain absent. Print Mode projection
+  is the final remaining implementation phase of the current Player Restriction
+  Governance beta. The complete Restriction project is not production-complete.
 - Core/read-only Monsters remain non-editable and are copied into campaign-local
   editable Monsters through the existing workflow.
 
@@ -550,7 +557,7 @@ governance, (5) Campaign-Custom Structured values, (6) surface integration and
 polish, then (7) an optional evaluation foundation only after separate
 authorization. UI must not precede proof of the domain model.
 
-Phase 4A2, Phase 4B1, Phase 4B2, and Phase 4C1 handoff:
+Phase 4A2, Phase 4B1, Phase 4B2, Phase 4C1, and Phase 4C2 handoff:
 
 - Lifecycle keys are `DRAFT`, `PENDING_GD_APPROVAL`, `APPROVED`,
   `CHANGES_REQUESTED`, and `APPROVAL_STALE`; Changes Requested is the primary
@@ -586,11 +593,12 @@ Phase 4A2, Phase 4B1, Phase 4B2, and Phase 4C1 handoff:
   credit until its numeric costing exists.
 - Do not mistake the pure functions or test-only complete tuning fixtures for
   active economic authority. Relational persistence and lifecycle APIs exist,
-  and the Character Builder now exposes derived governance/readiness UI, but the
-  campaign Approval Panel/pending queue, print filtering, persistent readiness,
-  production-complete drawback tuning, economic resolution, and active discount
-  application remain separately gated. The Oath rate and exceptional cap remain
-  open; self-approval remains unresolved; Monster provenance remains deferred.
+  the Character Builder exposes derived governance/readiness UI, and the campaign
+  Approval Panel/pending queue is implemented, but print filtering, persistent
+  readiness, production-complete drawback tuning, economic resolution, and active
+  discount application remain separately gated. The Oath rate and exceptional
+  cap remain open; self-approval remains unresolved; Monster provenance remains
+  deferred.
 
 Persistence and migration requirements:
 

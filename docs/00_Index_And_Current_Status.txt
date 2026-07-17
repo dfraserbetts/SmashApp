@@ -226,14 +226,16 @@ status keeps gross overspend and non-current governance as table-readiness
 failures. No provisional or active Restriction credit exists, and an approved
 tier is classification only.
 
-The campaign Approval Panel and pending queue are the next governance phase.
-No campaign Approval navigation, print filtering, persistent readiness, active
-drawback tuning, economic resolution, or active discount application exists.
-Campaign-Custom authoring, Monster approval provenance, runtime and Combat Lab
-evaluation, simulation, and Phase 6 surface polish and migration diagnostics
-remain deferred. The Oath rate and exceptional combined cap remain open, and
-self-approval remains unresolved. The complete Restriction project is not
-production-complete.
+Phase 4C2 provides GD-only campaign Approvals navigation, a server-authoritative
+Pending count, four review views, and immutable submitted-proposal review with
+tier-gated approval and note-required Request Changes. No print filtering,
+persistent readiness, active drawback tuning, economic resolution, or active
+discount application exists. Campaign-Custom authoring, Monster approval
+provenance, runtime and Combat Lab evaluation, simulation, and Phase 6 surface
+polish and migration diagnostics remain deferred. Print Mode projection is the
+final remaining implementation phase of the current Player Restriction Governance
+beta. The Oath rate and exceptional combined cap remain open, and self-approval
+remains unresolved. The complete Restriction project is not production-complete.
 
 The ordinary Player tiers are `MATERIAL_LIMITATION` / Material Limitation at
 10%, `SUBSTANTIAL_LIMITATION` / Substantial Limitation at 20%, and
@@ -504,9 +506,9 @@ law until the owning active doc is updated with an explicit decision.
 - Spark and Restriction implementation scope.
   Status: RESTRICTION SHARED AUTHORING PHASES 1-3, PHASE 4A2 PURE FOUNDATION,
   PHASE 4B1 PLAYER GOVERNANCE PERSISTENCE, PHASE 4B2 AUTHENTICATED LIFECYCLE,
-  AND PHASE 4C1 CHARACTER BUILDER INTEGRATION IMPLEMENTED / CAMPAIGN APPROVAL,
-  ACTIVE ECONOMICS, PRINT INTEGRATION, LATER PHASES, SPECIFIC CONTENT, AND
-  RUNTIME OPEN; SPARK OPEN.
+  PHASE 4C1 CHARACTER BUILDER INTEGRATION, AND PHASE 4C2 CAMPAIGN APPROVAL
+  WORKFLOW IMPLEMENTED / ACTIVE ECONOMICS, PRINT INTEGRATION, LATER PHASES,
+  SPECIFIC CONTENT, AND RUNTIME OPEN; SPARK OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and
   docs/03_Builders_And_Implementation_Roadmap.txt.
   Note: Character Creator is still missing Spark. Player Power, Signature Move,
@@ -525,11 +527,17 @@ law until the owning active doc is updated with an explicit decision.
   save-before-submit/resubmit workflow in the Character Builder. Its readiness
   display is derived rather than persisted; valid gross-overspent drafts can save,
   no provisional or active credit applies, and approved tiers are classification
-  only. Exact standard template inventory, Campaign-Custom authoring, the campaign
-  Approval Panel/pending queue, Monster provenance, active tuning/economics, print
-  projection integration, runtime and Combat Lab integration, specific content,
-  and Phase 6 polish remain later work. The Oath rate, exceptional cap, and three
-  governance questions listed in the status section above remain explicitly
+  only. Phase 4C2 adds GD-only campaign Approvals navigation, a server-authoritative
+  Pending count, Pending / Changes Requested / Approval Stale / Recently Approved
+  views, and immutable submitted-proposal review. Approval requires a selected
+  tier and permits an optional note; Request Changes requires a nonblank Note to
+  Player. Mismatched, safe-unsupported, orphaned, and archived proposals remain
+  visible with honest action blockers. Exact standard template inventory,
+  Campaign-Custom authoring, Monster provenance, active tuning/economics, runtime
+  and Combat Lab integration, specific content, and Phase 6 polish remain later
+  work. Print Mode projection is the final remaining implementation phase of the
+  current Player Restriction Governance beta. The Oath rate, exceptional cap, and
+  three governance questions listed in the status section above remain explicitly
   unresolved.
 - Transformation/Summoning/object/structure/machine/mount builder scopes.
   Status: OPEN.
