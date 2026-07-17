@@ -182,10 +182,11 @@ for (const requiredId of [
   "semantic-synergy-level-3-smoke",
   "self-attack-threat-level-3-smoke",
   "self-guard-survivability-level-3-smoke",
+  "self-bravery-survivability-level-3-smoke",
 ]) {
   assert.ok(quick.selected.some((suite) => suite.id === requiredId), `quick mode omitted ${requiredId}`);
 }
-assert.equal(quick.selected.length, 13, "quick mode must contain the thirteen available baseline suites.");
+assert.equal(quick.selected.length, 14, "quick mode must contain the fourteen available baseline suites.");
 for (const reconciliationId of reconciliationIds) {
   assert.equal(
     quick.selected.some((suite) => suite.id === reconciliationId),
@@ -438,9 +439,20 @@ const selfGuardSurvivabilitySuite = BALANCE_BENCHMARK_REGISTRY.find(
 assert.equal(selfGuardSurvivabilitySuite?.compatibility, "AVAILABLE");
 assert.equal(selfGuardSurvivabilitySuite?.failureSeverity, "BLOCKER");
 assert.deepEqual(selfGuardSurvivabilitySuite?.modes, ["quick", "axes", "full", "changed"]);
+const selfBraverySurvivabilitySuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "self-bravery-survivability-level-3-smoke",
+);
+assert.equal(selfBraverySurvivabilitySuite?.compatibility, "AVAILABLE");
+assert.equal(selfBraverySurvivabilitySuite?.failureSeverity, "BLOCKER");
+assert.deepEqual(selfBraverySurvivabilitySuite?.modes, ["quick", "axes", "full", "changed"]);
 assert.ok(
   changed("lib/calculators/selfGuardSurvivability.ts").selected.some(
     (suite) => suite.id === "self-guard-survivability-level-3-smoke",
+  ),
+);
+assert.ok(
+  changed("lib/calculators/selfBraverySurvivability.ts").selected.some(
+    (suite) => suite.id === "self-bravery-survivability-level-3-smoke",
   ),
 );
 assert.ok(full.selected.some((suite) => suite.id === "synergy-reconciliation"));
