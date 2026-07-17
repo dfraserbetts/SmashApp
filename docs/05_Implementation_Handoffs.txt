@@ -464,7 +464,7 @@ inspection against the locked Soldier attacks-to-defeat doctrine.
 
 Shared Restriction Authoring Implementation Handoff
 
-LOCKED AUTHORING AUTHORITY / PHASE 1 DOMAIN FOUNDATION IMPLEMENTED. The primary
+LOCKED AUTHORING AUTHORITY / PHASES 1-3 IMPLEMENTED. The primary
 shared model
 is owned by docs/02_Power_System_And_Costing.txt; commitment-time runtime law is
 owned by docs/01_Locked_Rules_And_Combat_Bible.txt; the mandatory seven-phase
@@ -478,34 +478,37 @@ Current implementation truth:
 - Monster Powers persist relationally through Prisma Power records;
   MonsterPower is currently an alias of the shared Power type.
 - Roleplay's `restrictionType`, `restrictionBand`, `restrictionTag`, and
-  `restrictionText` fields and visible controls are legacy prototype/migration
-  input. Target Eligibility currently rewrites the ordinary target phrase; that
-  behaviour must be retired, not preserved as permanent architecture.
+  `restrictionText` fields are deprecated transitional migration input. Their
+  visible controls are removed, and ordinary target grammar now derives only
+  from Scope rather than legacy Target Eligibility.
 - CharacterPower `sparkDiscountPercent?: 0` and
   `restrictionDiscountPercent?: 0` are inert placeholders, not the new API.
 - The pure shared Phase 1 definition, bounded proof registry, validator,
   renderer, evaluation metadata, canonicalizer, and semantic fingerprint are
   implemented. The proof registry is not the final complete V1 inventory.
-- Player Power and Signature Move Restriction definitions, plus explicitly
-  supplied Roleplay Restriction definitions, normalize and round-trip through
-  CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic
-  exists but is not automatically activated while legacy controls remain live.
+- Player Power, Signature Move, and Roleplay Restriction definitions normalize
+  and round-trip through CampaignCharacter.builderData JSON. Safe legacy
+  Roleplay data migrates during normalization; ambiguous data remains visible in
+  a dedicated review state and blocks save until deliberately resolved.
 - Monster Power semantic Restriction definitions round-trip through the nullable
   relational Power.restrictionJson field; existing Monster Powers default to no
   Restriction.
-- The shared editor is live for ordinary Player Powers, the Signature Move, and
-  editable campaign Monster Powers. Monster partial drafts remain transient;
+- The shared editor is live for ordinary Player Powers, the Signature Move,
+  editable campaign Monster Powers, and Roleplay Abilities. Phase 3 Standard
+  Structured and Custom Narrative integration is complete across the Player,
+  Monster, and Roleplay consumer families. Partial drafts remain transient;
   incomplete, invalid, malformed, missing, or cross-campaign drafts block save.
-  Valid Player definitions persist through CharacterBuilderData and valid
-  Monster definitions through Power.restrictionJson. Campaign-Custom and safe
-  unsupported definitions remain read-only and preservable.
+  Valid Player and Roleplay definitions persist through CharacterBuilderData and
+  valid Monster definitions through Power.restrictionJson. Campaign-Custom and
+  safe unsupported definitions remain read-only and preservable.
 - Core/read-only Monster Powers use read-only Restriction presentation, and
-  ordinary Monster descriptors remain separate. Roleplay integration and legacy
-  cutover remain absent. Phase 3 is not complete.
+  ordinary Ability descriptors remain separate. Phase 2 persistence plus the
+  Roleplay legacy cutover is complete.
 - Campaign-Custom authoring, approval, GD auto-approval provenance, a
   campaign-custom value database layer, governance, runtime evaluation, Combat
-  Lab integration, economics, and simulation remain absent. Phase 2 as a whole
-  is not complete.
+  Lab integration, economics, simulation, and Phase 6 surface polish and
+  migration diagnostics remain absent. The complete Restriction project is not
+  production-complete.
 - Core/read-only Monsters remain non-editable and are copied into campaign-local
   editable Monsters through the existing workflow.
 

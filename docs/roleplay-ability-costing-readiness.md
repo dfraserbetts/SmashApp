@@ -129,19 +129,18 @@ separate authorities. The first explains the Ability's operation; the second
 explains the pre-existing narrative eligibility condition. Future previews,
 character sheets, printable references, and inspection surfaces must render a
 Restriction separately instead of splicing its prose into Outcome Contract
-grammar. This document authorizes no Builder, schema, database, resolver, or
-runtime implementation.
+grammar. This costing authority itself authorizes no schema, database, resolver,
+economic, or runtime implementation.
 
-Current `restrictionType`, `restrictionBand`, `restrictionTag`, and
-`restrictionText` fields and their UI are conservative migration input only,
-not the permanent shared definition, editor, governance, or economic API. In
-particular, legacy Target Eligibility text must stop replacing ordinary target
-grammar when the shared editor foundation is integrated into Roleplay. The pure
-shared draft model and reusable editable/read-only components now exist, but no
-Roleplay integration or legacy cutover exists. An explicitly supplied shared
-semantic Restriction now round-trips in Roleplay builderData, and a pure legacy
-migration helper exists, but ordinary normalization does not invoke it while
-these legacy controls remain live.
+The `restrictionType`, `restrictionBand`, `restrictionTag`, and `restrictionText`
+fields are deprecated transitional migration input only, not the permanent
+shared definition, editor, governance, or economic API. Their live controls are
+removed. Safe legacy values migrate during ordinary normalization and resolved
+saves neutralize the fields; ambiguous values remain visible for deliberate
+review and block save. The shared editor now owns Roleplay authoring, semantic
+Restrictions round-trip through builderData, and ordinary target grammar derives
+only from Scope rather than legacy Target Eligibility. The Restriction descriptor
+remains separate and no Restriction changes Roleplay cost.
 
 ## Components That Never Directly Change Automatic Cost
 
@@ -510,10 +509,11 @@ The fingerprint contract is locked in the shared authority: schema version,
 mode, template key/version, normalized parameters or Custom Narrative text, and
 campaign-value identity are semantic inputs; lifecycle, reviewer/timestamps,
 notes, UI state, descriptor-only formatting, and future economics are excluded.
-Exact future enum spellings, complete standard-template inventory, persistence
-shape, server endpoints, UI, and numeric classification/credits remain later
-work. This specification adds no approval field, code, schema, database
-workflow, or runtime behaviour.
+Exact future enum spellings, complete standard-template inventory, governance
+persistence and server endpoints, Campaign-Custom authoring, Phase 6 surface
+polish and migration diagnostics, and numeric classification/credits remain
+later work. This specification adds no approval field, schema, database workflow,
+economic resolver, or runtime behaviour.
 
 ## Future Pure Resolver Contract
 
@@ -728,7 +728,8 @@ OPEN:
   storage formats, and approval persistence implementation;
 - tuning schema and database storage;
 - cached cost/cooldown fields;
-- migration of existing Roleplay Abilities;
+- Phase 6 migration diagnostics and deliberate disposition of unresolved legacy
+  Roleplay data;
 - budget-validation integration; and
 - final player-facing terminology.
 

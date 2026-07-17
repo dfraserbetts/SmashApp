@@ -100,13 +100,14 @@ These items are captured roadmap/backlog, not locked rule law.
 Character Creator:
 
 - Character Creator is still missing Spark support.
-- Player Power and Signature Move Restriction authoring is live; Roleplay shared
-  Restriction integration and legacy cutover remain absent.
+- Player Power, Signature Move, editable Monster Power, and Roleplay Ability
+  Restriction authoring are live; the atomic Roleplay legacy cutover is complete.
 - The shared Restriction authoring model is locked for Player Powers, Roleplay
   Abilities, and GD-authored Monster Powers, and its pure Phase 1 domain
-  foundation, Player persistence/editor integration, and Monster
-  persistence/editor integration are implemented. Governance, Roleplay UI, and
-  optional evaluation implementation remain absent. Spark
+  foundation, Phase 2 persistence, and Phase 3 Standard/Custom editor integration
+  are implemented across all three consumer families. Campaign-Custom authoring,
+  governance, Phase 6 polish and migration diagnostics, and optional evaluation
+  implementation remain absent. Spark
   scope remains OPEN / NEEDS ARCHITECT DECISION, and Restriction economics,
   specific content, scenario assumptions, and preserved governance questions
   remain later work.
@@ -159,8 +160,8 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
   - Outcome Contract
   - Dice Count
 - Optional / conditional fields:
-  - Restriction through the future shared editor; current Roleplay restriction
-    controls are legacy prototype/migration input only
+  - Restriction through the live shared editor; legacy Roleplay restriction
+    controls are removed and their fields remain transitional migration input only
   - Counter permission where the selected standard contract permits it
   - Proposed Method Name and Custom Method Request for Custom Method review
   - proposed Outcome Lane and Custom Outcome Request for Custom Outcome review
@@ -303,14 +304,14 @@ Scope, Intention, or Method outside the family clears the selection and
 Counter. Counter stays disabled at every tier. The derived panel should identify
 the current Impact variant; no separate duration field is authored.
 
-The current visible control labelled "Additional Restriction Type", its band,
-tag, and free-text fields are prototype UI and migration input, not the
-permanent editor contract. The future shared editor uses exactly Standard
-Structured, Campaign-Custom Structured, and Custom Narrative modes, renders a
+The legacy "Additional Restriction Type", band, tag, and free-text controls have
+been removed. The live shared editor uses Standard Structured and Custom
+Narrative authoring, preserves Campaign-Custom definitions read-only, renders a
 separate Restriction descriptor, and never rewrites ordinary target or Outcome
-Contract grammar. Legacy `restrictionType`, `restrictionBand`,
-`restrictionTag`, and `restrictionText` names must be read conservatively during
-migration but are not the permanent persisted API.
+Contract grammar. Legacy `restrictionType`, `restrictionBand`, `restrictionTag`,
+and `restrictionText` remain transitional migration input only: safe values
+migrate automatically, ambiguous values require deliberate review and block
+save, and resolved saves neutralize them.
 
 The standard Method registry contains Appeal and Rally under Persuasion,
 Misdirect and Distract under Deception, Rescue and Interrupt under Intervention, Challenge
@@ -785,13 +786,11 @@ or numeric-costing change. Fixture Dice Count 3 remains deterministic semantic
 coverage only and is not final pregen balance authority.
 
 
-Shared Restriction Authoring - Future Implementation Sequence
+Shared Restriction Authoring - Implementation Sequence
 
-LOCKED AUTHORING MODEL / PHASE 1 DOMAIN FOUNDATION IMPLEMENTED. One future
-shared editor must serve Player Character Powers, Roleplay
-Abilities, and GD-authored Monster Powers while respecting their different
-storage and governance adapters. UI must not precede proof of the shared domain
-model.
+LOCKED AUTHORING MODEL / PHASES 1-3 IMPLEMENTED. The shared editor serves Player
+Character Powers, Roleplay Abilities, and GD-authored Monster Powers while
+respecting their different storage adapters. Later governance remains separate.
 
 Phase 1 - Shared domain foundation (implemented):
 
@@ -805,8 +804,8 @@ Phase 1 - Shared domain foundation (implemented):
 - keep this layer independent of React, APIs, Prisma, databases, runtime,
   Combat Lab, and numeric tuning.
 
-Phase 2 - Persistence adapters (Phase 2A player JSON contract and Phase 2B
-Monster relational persistence implemented; atomic legacy cutover remains):
+Phase 2 - Persistence adapters (implemented, including the atomic Roleplay legacy
+cutover):
 
 - normalize and preserve versioned definitions within
   CampaignCharacter.builderData JSON for Player Powers, Signature Moves, and
@@ -819,9 +818,8 @@ Monster relational persistence implemented; atomic legacy cutover remains):
 - preserve Monster Power identities, packet identities, reconciliation, and
   core/read-only-to-campaign-copy behaviour.
 
-Phase 3 - Standard Structured and Custom Narrative UI (Phase 3A shared
-foundation plus Player Power, Signature Move, and editable Monster Power live
-integration implemented; Roleplay integration deferred):
+Phase 3 - Standard Structured and Custom Narrative UI (implemented across the
+Player, Monster, and Roleplay consumer families):
 
 - build the dependent Subject + Condition + Operator + Value editor from the
   shared registry rather than a finished-sentence mega-dropdown;
@@ -876,31 +874,28 @@ Phase 7 - Optional evaluation foundation, only after separate authorization:
 - do not infer combat declaration blocking, runtime integration, Combat Lab,
   simulation, scenario assumptions, or economic value from authoring metadata.
 
-Current implementation truth: the pure shared Phase 1 definition, bounded proof
-registry, validator, renderer, evaluation metadata, canonicalizer, and semantic
-fingerprint are implemented; the proof registry is not the final complete V1
-inventory. Player Power and Signature Move Restriction definitions, plus an
-explicitly supplied Roleplay Restriction definition, now normalize and
-round-trip in CampaignCharacter.builderData JSON. Pure legacy Roleplay migration
-logic exists but is not automatically activated while the legacy controls remain
-live. Monster Powers persist as relational Prisma Power records and share the
-common Power type; semantic Restriction definitions now round-trip through the
-nullable Power.restrictionJson field, and existing rows default to no
-Restriction. The shared editor is live for ordinary Player Powers, the Signature
-Move, and editable campaign Monster Powers. Monster partial drafts remain
-transient; incomplete, invalid, malformed, missing, or cross-campaign drafts
-block save. Valid Player definitions persist through CharacterBuilderData and
-valid Monster definitions through Power.restrictionJson. Core/read-only Monster
-Powers use read-only Restriction presentation. Campaign-Custom and safe
-unsupported definitions remain read-only and preservable, and ordinary Monster
-descriptors remain separate. Roleplay integration and legacy cutover remain
-absent, so Phase 3 is not complete. Campaign-Custom authoring, approval, GD auto-
-approval provenance, a campaign-custom value database layer, governance, runtime
-evaluation, Combat Lab integration, economics, and simulation remain absent.
-Phase 2 as a whole is not complete.
+Current implementation truth: the pure shared Phase 1 domain is implemented;
+the proof registry is not the final complete V1 inventory. Phase 2 persistence
+plus the Roleplay legacy cutover is complete across CharacterBuilderData JSON
+and Monster Power.restrictionJson. Safe legacy Roleplay values migrate during
+normalization, while ambiguous values remain reviewable and block save until a
+deliberate replacement is selected. Legacy Roleplay controls are removed,
+resolved saves neutralize their transitional fields, and Scope alone controls
+ordinary Roleplay target grammar.
 
-The current Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`,
-and `restrictionText` fields and UI are migration inputs only. CharacterPower
+Phase 3 Standard Structured and Custom Narrative integration is complete for
+ordinary Player Powers, the Signature Move, editable campaign Monster Powers,
+and Roleplay Abilities. Campaign-Custom and safe unsupported definitions remain
+read-only and preservable; core Monster Powers use read-only presentation; and
+ordinary Ability descriptors remain separate. Campaign-Custom authoring,
+approval and GD auto-approval provenance implementation, a campaign-custom value
+database layer, governance, runtime and Combat Lab evaluation, economics,
+simulation, and Phase 6 surface polish and migration diagnostics remain absent.
+The complete Restriction project is not production-complete.
+
+The Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`, and
+`restrictionText` fields are deprecated transitional migration inputs only;
+their UI has been removed. CharacterPower
 `sparkDiscountPercent?: 0` and `restrictionDiscountPercent?: 0` are inert
 placeholders, not the new Restriction API. No numeric credit is unlocked.
 

@@ -1006,18 +1006,24 @@ of practical availability, reliable enabling, enforcement, and table preference
 rather than automatic economic treatment.
 
 Restrictions may be drafted and manually reviewed. The shared editor is live for
-ordinary Player Powers, the Signature Move, and editable campaign Monster Powers.
-Monster partial drafts remain transient; incomplete, invalid, malformed, missing,
-or cross-campaign drafts block save. Valid Player definitions persist through
-CharacterBuilderData and valid Monster definitions through Power.restrictionJson.
-Core/read-only Monster Powers use read-only Restriction presentation. Campaign-
-Custom and safe unsupported definitions remain read-only and preservable, and
-ordinary Monster descriptors remain separate. Roleplay integration and legacy
-cutover, Campaign-Custom authoring, and governance remain deferred.
+ordinary Player Powers, the Signature Move, editable campaign Monster Powers,
+and Roleplay Abilities. Standard Structured and Custom Narrative integration is
+complete across the Player, Monster, and Roleplay consumer families. Phase 2
+persistence plus the Roleplay legacy cutover is complete: safe legacy values
+migrate, ambiguous values require deliberate review and block save, legacy
+controls are removed, and ordinary Roleplay target grammar derives only from
+Scope. Valid Player and Roleplay definitions persist through CharacterBuilderData
+and valid Monster definitions through Power.restrictionJson. Core/read-only
+Monster Powers use read-only Restriction presentation. Campaign-Custom and safe
+unsupported definitions remain read-only and preservable, and ordinary Ability
+descriptors remain separate. Campaign-Custom authoring, governance, approval and
+provenance implementation, and Phase 6 surface polish and migration diagnostics
+remain deferred.
 Manual prose, a selected label, or a stored percentage cannot approve or price
-itself. Complete standard-template coverage, remaining consumer UI, specific
-pregen Restrictions, scenario assumptions, numeric classifications and values,
-runtime enforcement, Combat Lab execution, and simulation remain future work.
+itself. Complete standard-template coverage, specific pregen Restrictions,
+scenario assumptions, numeric classifications and values, runtime enforcement,
+Combat Lab execution, and simulation remain future work. The complete
+Restriction project is not production-complete.
 
 Restrictions do not add upside. If text says "only works on allies, but doubles
 effect," the "doubles effect" part is not a restriction. Upside belongs to
@@ -1972,13 +1978,14 @@ costing, descriptor, schema, or data change.
 
 Restrictions, Power Burdens, And Blaze Development Order
 
-LOCKED DEPENDENCY DIRECTION / IMPLEMENTATION PARKED. For these connected
-systems, use this intended order:
+LOCKED DEPENDENCY DIRECTION / RESTRICTION PHASES 1-3 IMPLEMENTED; LATER WORK
+PARKED. For these connected systems, use this intended order:
 
-1. Implement the locked shared Restriction authoring model through the seven
-   phases in docs/03: domain, persistence adapters, Standard/Custom Narrative
-   UI, governance, campaign-custom values, surface polish, then separately
-   authorized optional evaluation.
+1. Continue the locked shared Restriction authoring model through the seven
+   phases in docs/03. Domain, persistence adapters including Roleplay cutover,
+   and Standard/Custom Narrative UI are complete. Governance, campaign-custom
+   values, surface polish/migration diagnostics, and separately authorized
+   optional evaluation remain deferred.
 2. Structured Activation Cost and Backlash authoring.
 3. Separate descriptor integration.
 4. Player Character economic calibration and versioned tuning authority;
@@ -2004,9 +2011,10 @@ OPEN design, calibration, content, and implementation work:
 - whether a GD may approve a Restriction on their own Player Character, whether
   broader non-Restriction character-build edits stale approval, and whether
   reliable-enabler or wider-context changes automatically stale approval;
-- exact persistence schema and adapter implementation, governance storage, and
-  server endpoints under the locked provenance/fingerprint rules;
-- Builder/Monster editor UI and descriptor surfaces;
+- governance storage and server endpoints under the locked provenance/fingerprint
+  rules;
+- Campaign-Custom authoring and Phase 6 reference, print, accessibility, and
+  migration-diagnostic surfaces;
 - specific pregen Restrictions, campaign values, and explicit scenario
   assumptions, including the preserved Gandalf-style playtest;
 - runtime state, Combat Lab support, and automatic simulation policy;

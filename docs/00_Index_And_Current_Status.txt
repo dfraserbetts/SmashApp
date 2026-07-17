@@ -140,7 +140,7 @@ Roleplay Ability costs and final contract privilege adjustments remain open.
 
 Restrictions, Power Burdens, And Blaze Status
 
-LOCKED SHARED AUTHORING AUTHORITY / DOMAIN FOUNDATION IMPLEMENTED. A Restriction
+LOCKED SHARED AUTHORING AUTHORITY / PHASES 1-3 IMPLEMENTED. A Restriction
 is one atomic,
 enforceable, pre-existing, whole-Ability narrative eligibility condition. A
 Player Character Power, Roleplay Ability, or GD-authored Monster Power may have
@@ -163,26 +163,29 @@ changes automatically stale approval remain open.
 
 The pure shared Phase 1 definition, bounded proof registry, validator, renderer,
 and canonical semantic fingerprint are implemented. The proof registry is not
-the final complete V1 inventory. Player Power and Signature Move definitions,
-plus explicitly supplied Roleplay definitions, now normalize and round-trip in
-CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic exists
-but is not automatically activated while the legacy controls remain live.
-Monster Power semantic Restriction definitions now persist in the nullable
-relational Power.restrictionJson field; existing Monster Powers default to no
-Restriction. The shared editor is now live for ordinary Player Powers, the
-Signature Move, and editable campaign Monster Powers. Monster partial drafts
-remain transient; incomplete, invalid, malformed, missing, or cross-campaign
-drafts block save. Valid Player definitions persist through CharacterBuilderData
-and valid Monster definitions through Power.restrictionJson. Core/read-only
-Monster Powers use read-only Restriction presentation. Campaign-Custom and safe
-unsupported definitions remain read-only and preservable, and ordinary Monster
-descriptors remain separate. Roleplay integration and legacy cutover, and
-Campaign-Custom authoring remain deferred. No approval, GD auto-approval
-provenance, campaign-custom value database layer, governance, runtime evaluator,
-Combat Lab, economics, or simulation implementation is claimed. Phase 2 as a
-whole and Phase 3 are not complete.
+the final complete V1 inventory. Phase 2 persistence is complete: Player Power,
+Signature Move, and Roleplay definitions normalize and round-trip in
+CampaignCharacter.builderData JSON, while Monster definitions persist in the
+nullable relational Power.restrictionJson field. Safe legacy Roleplay values now
+migrate during normalization; ambiguous values remain visible for deliberate
+review and block save. Legacy Roleplay Restriction controls are removed, resolved
+saves neutralize their transitional fields, and ordinary Roleplay target grammar
+now depends only on Scope rather than legacy Target Eligibility.
+
+Phase 3 Standard Structured and Custom Narrative editor integration is complete
+across the Player, Monster, and Roleplay consumer families: ordinary Player
+Powers, the Signature Move, editable campaign Monster Powers, and Roleplay
+Abilities all use the shared editor. Invalid or incomplete drafts block save;
+Campaign-Custom and safe unsupported definitions remain read-only and
+preservable; core Monster Powers use read-only presentation; and ordinary
+Ability descriptors remain separate. Campaign-Custom authoring, Phase 4
+governance, approval and GD auto-approval provenance implementation, runtime and
+Combat Lab evaluation, economics, simulation, and Phase 6 surface polish and
+migration diagnostics remain deferred. The complete Restriction project is not
+production-complete.
+
 Exact standard template inventory,
-future enum spellings, UI, specific pregen Restrictions, scenario
+future enum spellings, specific pregen Restrictions, scenario
 assumptions, economic classifications, numeric bands, and credit values remain
 later work. Gross BPV and cooldown basis remain unchanged. Runtime eligibility
 law lives in docs/01, shared non-numeric authoring authority in docs/02, future
@@ -424,19 +427,20 @@ law until the owning active doc is updated with an explicit decision.
   Note: Campaign-local workflows are current; global protected asset policy is
   future work.
 - Spark and Restriction implementation scope.
-  Status: RESTRICTION SHARED AUTHORING MODEL LOCKED / IMPLEMENTATION, SPECIFIC
-  CONTENT, RUNTIME, AND NUMERIC CALIBRATION OPEN; SPARK OPEN.
+  Status: RESTRICTION SHARED AUTHORING PHASES 1-3 IMPLEMENTED / LATER PHASES,
+  SPECIFIC CONTENT, RUNTIME, AND NUMERIC CALIBRATION OPEN; SPARK OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and
   docs/03_Builders_And_Implementation_Roadmap.txt.
-  Note: Character Creator is still missing Spark and Roleplay shared Restriction
-  cutover. Player Power, Signature Move, and editable Monster Power authoring are
-  live. The three authoring modes, structured grammar and
-  registry direction, V1 subjects and condition families, evaluation classes,
-  governance separation, fingerprints, and consumer-specific boundaries are
-  locked. Exact standard template inventory, remaining UI, governance, runtime
-  and Combat Lab integration, specific content, economic classifications, and
-  numeric credits remain later work. The three governance questions listed in
-  the status section above remain explicitly unresolved.
+  Note: Character Creator is still missing Spark. Player Power, Signature Move,
+  editable Monster Power, and Roleplay Ability shared Restriction authoring are
+  live, and the Roleplay legacy cutover is complete. The three authoring modes,
+  structured grammar and registry direction, V1 subjects and condition families,
+  evaluation classes, governance separation, fingerprints, and consumer-specific
+  boundaries are locked. Exact standard template inventory, Campaign-Custom authoring,
+  governance, runtime and Combat Lab integration, specific content, Phase 6
+  polish and migration diagnostics, economic classifications, and numeric
+  credits remain later work. The three governance questions listed in the
+  status section above remain explicitly unresolved.
 - Transformation/Summoning/object/structure/machine/mount builder scopes.
   Status: OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and

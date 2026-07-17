@@ -861,11 +861,14 @@ model and adds no governance, runtime, descriptor-cache, or player-economic
 fields to Monster Power.
 
 Legacy Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`, and
-`restrictionText` are migration input only. NONE becomes no Restriction;
-non-None data maps only where unambiguous; legacy text/tags are preserved; no
-Approved state, GD provenance, or credit is manufactured; and unproven history
-defaults to Draft. Retire legacy behaviour that splices target eligibility into
-normal descriptor grammar. CharacterPower `sparkDiscountPercent?: 0` and
+`restrictionText` are transitional migration input only. NONE becomes no
+Restriction and safe non-None data migrates during normalization. Ambiguous
+values remain available for deliberate review and block save rather than being
+guessed or erased. Resolved semantic saves neutralize the legacy fields, and the
+legacy controls are no longer live. No Approved state, GD provenance, or credit
+is manufactured. Ordinary Roleplay target grammar now derives only from Scope;
+legacy Target Eligibility never replaces it. CharacterPower
+`sparkDiscountPercent?: 0` and
 `restrictionDiscountPercent?: 0` placeholders must be tolerated and normalized
 safely but are not semantic Restriction data. Existing Monster Powers have no
 Restriction unless actual persisted source data exists. Existing Monster Power
@@ -874,22 +877,23 @@ be preserved.
 
 The pure shared Phase 1 definition, bounded proof registry, validator, renderer,
 and canonical semantic fingerprint now exist. The proof registry is not the
-final complete V1 inventory. Player Power and Signature Move definitions, plus
-explicitly supplied Roleplay definitions, now round-trip through
-CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic exists
-but is not automatically activated while legacy controls remain live. Monster
-Power semantic Restriction relational persistence now exists. The shared editor
-is live for ordinary Player Powers, the Signature Move, and editable campaign
-Monster Powers. Monster partial drafts remain transient; incomplete, invalid,
-malformed, missing, or cross-campaign drafts block save. Valid Player definitions
-persist through CharacterBuilderData and valid Monster definitions through
-Power.restrictionJson. Core/read-only Monster Powers use read-only Restriction
+final complete V1 inventory. Phase 2 persistence plus the atomic Roleplay legacy
+cutover is complete across CharacterBuilderData JSON and Monster
+Power.restrictionJson. Safe legacy Roleplay data migrates automatically;
+ambiguous data requires deliberate review and blocks save.
+
+Phase 3 Standard Structured and Custom Narrative editor integration is complete
+across the Player, Monster, and Roleplay consumer families: ordinary Player
+Powers, the Signature Move, editable campaign Monster Powers, and Roleplay
+Abilities use the shared editor. Incomplete, invalid, malformed, missing, or
+cross-campaign drafts block save. Core/read-only Monster Powers use read-only
 presentation. Campaign-Custom and safe unsupported definitions remain read-only
-and preservable, and ordinary Monster descriptors remain separate. Roleplay
-integration and legacy cutover, Campaign-Custom authoring, approval, GD auto-
-approval provenance, a campaign-custom value database layer, governance, runtime
-evaluation, Combat Lab integration, economics, and simulation remain absent;
-Phase 2 remains incomplete and Phase 3 is not complete.
+and preservable, and ordinary Ability descriptors remain separate.
+Campaign-Custom authoring, approval and GD auto-approval provenance
+implementation, a campaign-custom value database layer, governance, runtime
+evaluation, Combat Lab integration, economics, simulation, and Phase 6 surface
+polish and migration diagnostics remain absent. The complete Restriction project
+is not production-complete.
 A future
 runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
 exact enum names and implementation are separately authorized later work.
