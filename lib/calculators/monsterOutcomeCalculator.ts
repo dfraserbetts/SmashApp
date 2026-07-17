@@ -40,6 +40,11 @@ import {
 } from "@/lib/summoning/augmentDebuffEconomics";
 import { getNaturalAoeOneAreaCapacity } from "@/lib/powers/expectedTargetEstimation";
 import { computeLevel3SemanticSynergy } from "@/lib/calculators/semanticSynergy";
+import {
+  computeLevel3SelfAttackThreat,
+  type SelfAttackThreatMainAction,
+  type SelfAttackThreatPowerEntry,
+} from "@/lib/calculators/selfAttackThreat";
 
 export type { MonsterCalculatorArchetype };
 
@@ -4340,6 +4345,9 @@ export function computeMonsterOutcomes(
 ): MonsterOutcomeProfile {
   const cfg = config;
   const netSuccessMultiplier = cfg.baselineParty.netSuccessMultiplier;
+  const atWillThreatAxisMultiplier =
+    opts?.protectionTuning?.atWillThreatAxisMultiplier ??
+    DEFAULT_COMBAT_TUNING_VALUES.atWillThreatAxisMultiplier;
   const dieSides = dieSidesFromDieString(monster.attackDie);
   const successChance = successChanceFromDieSides(dieSides);
   const atWillDiceCount = resolveAtWillAttackDiceCount(monster, opts?.protectionTuning);
@@ -4409,6 +4417,22 @@ export function computeMonsterOutcomes(
   );
   const atWillSummary = summarizeAtWillCandidates(atWillCandidates);
 
+  const selfAttackThreatMainActions: SelfAttackThreatMainAction[] = atWillProfiles
+    .filter((profile) => profile.segments.length > 0)
+    .map((profile, index) => ({
+      id: profile.sourceId ?? `${profile.sourceKind}:${index}:${profile.sourceLabel}`,
+      label: profile.sourceLabel,
+      segments: profile.segments.map((segment) => ({
+        lane: segment.threatLane,
+        diceCount: segment.diceCount,
+        dieSides: segment.dieSides,
+        woundsPerSuccess: segment.woundsPerSuccess,
+        targetMultiplier: segment.targetMultiplier,
+        damageTypeCount: segment.damageTypeCount,
+        reliabilityMultiplier: netSuccessMultiplier * segment.reliabilityMultiplier,
+      })),
+    }));
+
   const sustainedPhysical = atWillSummary.bestPhysical;
   const sustainedMental = atWillSummary.bestMental;
   const spike = atWillSummary.bestTotal;
@@ -4416,6 +4440,47 @@ export function computeMonsterOutcomes(
   const tsuPerRound = 0;
   const powerAvailability = resolveEffectivePowerAxisContribution(opts?.powerContribution);
   const canonicalPowerAxisVector = powerAvailability.canonicalPowerAxisVector;
+  const canonicalPowerEntries = opts?.powerContribution?.powers ?? [];
+  const selfAttackThreatPowerEntries: SelfAttackThreatPowerEntry[] = [];
+  const seenSelfAttackThreatPowerKeys = new Set<string>();
+  for (const authoredPower of monster.powers ?? []) {
+    const matchingCanonical = canonicalPowerEntries.find(
+      (entry) =>
+        (authoredPower.id && entry.id === authoredPower.id) ||
+        (!authoredPower.id && entry.name === authoredPower.name),
+    );
+    const key = authoredPower.id ? `id:${authoredPower.id}` : `name:${authoredPower.name}`;
+    seenSelfAttackThreatPowerKeys.add(key);
+    selfAttackThreatPowerEntries.push({
+      id: authoredPower.id ?? matchingCanonical?.id ?? null,
+      name: authoredPower.name,
+      authoredPower,
+      cooldownAuthority:
+        matchingCanonical?.cooldownAuthority ?? authoredPower.cooldownAuthority ?? null,
+    });
+  }
+  for (const entry of canonicalPowerEntries) {
+    const authoredPower = entry.authoredPower;
+    if (!authoredPower) continue;
+    const key = authoredPower.id ? `id:${authoredPower.id}` : `name:${authoredPower.name}`;
+    if (seenSelfAttackThreatPowerKeys.has(key)) continue;
+    selfAttackThreatPowerEntries.push({
+      id: entry.id ?? authoredPower.id ?? null,
+      name: entry.name ?? authoredPower.name,
+      authoredPower,
+      cooldownAuthority: entry.cooldownAuthority ?? authoredPower.cooldownAuthority ?? null,
+    });
+  }
+  const semanticSelfAttackThreatModel = computeLevel3SelfAttackThreat({
+    level: monster.level,
+    tier: monster.tier,
+    dieSides,
+    mainActions: selfAttackThreatMainActions,
+    powers: selfAttackThreatPowerEntries,
+    netSuccessMultiplier,
+    aoeMultiplier: cfg.baselineParty.aoeMultiplier,
+    atWillThreatAxisMultiplier,
+  });
   const expectedPowerAttackContribution = getExpectedPowerAttackContribution({
     monster,
     powerContribution: opts?.powerContribution,
@@ -4423,16 +4488,39 @@ export function computeMonsterOutcomes(
     netSuccessMultiplier,
     aoeMultiplier: cfg.baselineParty.aoeMultiplier,
   });
+  const eligibleSelfAttackPowerIds = new Set(semanticSelfAttackThreatModel.eligiblePowerIds);
+  const excludedSelfAttackCostThreat = powerAvailability.perPower.reduce(
+    (sum, entry) => {
+      if (!entry.id || !eligibleSelfAttackPowerIds.has(entry.id)) return sum;
+      return {
+        physicalThreat:
+          sum.physicalThreat + Number(entry.effectivePowerAxisVector.physicalThreat ?? 0),
+        mentalThreat:
+          sum.mentalThreat + Number(entry.effectivePowerAxisVector.mentalThreat ?? 0),
+      };
+    },
+    { physicalThreat: 0, mentalThreat: 0 },
+  );
+  const expectedPhysicalPowerAttack = expectedPowerAttackContribution.axisVector.physicalThreat;
+  const expectedMentalPowerAttack = expectedPowerAttackContribution.axisVector.mentalThreat;
   const effectivePowerAxisVector = {
     ...powerAvailability.effectivePowerAxisVector,
     physicalThreat:
-      expectedPowerAttackContribution.axisVector.physicalThreat > 0
-        ? expectedPowerAttackContribution.axisVector.physicalThreat
-        : powerAvailability.effectivePowerAxisVector.physicalThreat,
+      expectedPhysicalPowerAttack > 0
+        ? expectedPhysicalPowerAttack
+        : Math.max(
+            0,
+            powerAvailability.effectivePowerAxisVector.physicalThreat -
+              excludedSelfAttackCostThreat.physicalThreat,
+          ),
     mentalThreat:
-      expectedPowerAttackContribution.axisVector.mentalThreat > 0
-        ? expectedPowerAttackContribution.axisVector.mentalThreat
-        : powerAvailability.effectivePowerAxisVector.mentalThreat,
+      expectedMentalPowerAttack > 0
+        ? expectedMentalPowerAttack
+        : Math.max(
+            0,
+            powerAvailability.effectivePowerAxisVector.mentalThreat -
+              excludedSelfAttackCostThreat.mentalThreat,
+          ),
   };
 
   const sustainedTotal = sustainedPhysical + sustainedMental;
@@ -4451,9 +4539,6 @@ export function computeMonsterOutcomes(
   const mentalRoundsToZero = clampNonNegative(monster.mentalPerseveranceMax) / netIncoming;
   const legacyNonPowerPresenceBudget =
     spike * 0.6 + sustainedTotal * 0.4 + (atWillSummary.hasAoe ? 1.5 : 0);
-  const atWillThreatAxisMultiplier =
-    opts?.protectionTuning?.atWillThreatAxisMultiplier ??
-    DEFAULT_COMBAT_TUNING_VALUES.atWillThreatAxisMultiplier;
   const sustainedPhysicalThreatAxis = sustainedPhysical * atWillThreatAxisMultiplier;
   const sustainedMentalThreatAxis = sustainedMental * atWillThreatAxisMultiplier;
 
@@ -4879,8 +4964,14 @@ export function computeMonsterOutcomes(
     tuning: cfg.semanticSynergyAxisTuning,
   });
   const finalPreNormalizationAxes: RadarAxes = {
-    physicalThreat: nonPowerContribution.physicalThreat + effectivePowerAxisVector.physicalThreat,
-    mentalThreat: nonPowerContribution.mentalThreat + effectivePowerAxisVector.mentalThreat,
+    physicalThreat:
+      nonPowerContribution.physicalThreat +
+      effectivePowerAxisVector.physicalThreat +
+      semanticSelfAttackThreatModel.physicalThreatIncrement,
+    mentalThreat:
+      nonPowerContribution.mentalThreat +
+      effectivePowerAxisVector.mentalThreat +
+      semanticSelfAttackThreatModel.mentalThreatIncrement,
     physicalSurvivability:
       nonPowerContribution.physicalSurvivability +
       effectivePowerAxisVector.physicalSurvivability,
@@ -5031,6 +5122,10 @@ export function computeMonsterOutcomes(
         resolverDebug: opts?.powerContribution?.debug ?? null,
         source: opts?.powerContribution ? "canonical_phase6_resolver" : "none_provided",
         expectedAttackOutput: expectedPowerAttackContribution,
+        semanticSelfAttackThreatReplacement: {
+          excludedCostDerivedThreat: excludedSelfAttackCostThreat,
+          model: semanticSelfAttackThreatModel,
+        },
       },
       nonPowerContribution: {
         axisVector: nonPowerContribution,
@@ -5090,6 +5185,7 @@ export function computeMonsterOutcomes(
       },
       finalPreNormalizationAxes,
       semanticSynergyAxisModel,
+      semanticSelfAttackThreatModel,
       normalizationBreakdown: {
         level,
         tierKey,
@@ -5145,6 +5241,7 @@ export function computeMonsterOutcomes(
             },
         controlPressureAxisBaselineModel,
         semanticSynergyAxisModel,
+        semanticSelfAttackThreatModel,
         pressureAxisBaselineModel,
         radarAxes,
       },
