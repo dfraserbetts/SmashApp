@@ -501,9 +501,10 @@ Pending proposals remain immutable and the read model exposes when the submitted
 proposal no longer matches the live Ability. Approval is blocked in that state;
 Request Changes still applies to the immutable proposal. Existing restricted
 Roleplay content without governance appears as a non-persisted synthetic Draft,
-unrestricted content receives no synthetic row, and deleted consumers preserve
-orphaned history. Safe unsupported definitions may be submitted or returned for
-changes but cannot be approved.
+unrestricted content receives no synthetic row, and Roleplay deletion policy is
+unchanged: deleted Roleplay consumers do not participate in Player Power/Signature
+governance hard-delete cleanup. Safe unsupported definitions may be submitted or
+returned for changes but cannot be approved.
 
 Roleplay uses the same ordered classification as Player Powers and Signature
 Moves: `MATERIAL_LIMITATION` / Material Limitation,

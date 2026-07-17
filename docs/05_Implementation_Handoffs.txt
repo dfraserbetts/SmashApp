@@ -520,12 +520,14 @@ Current implementation truth:
   authenticated Character governance reads, assigned-player/GD submission,
   GD/admin approval and Request Changes, required optimistic revisions,
   conditional transactional writes, and append-only adapter-valid events. Reads
-  derive currentness from live fingerprints, preserve orphaned history, expose
-  Pending mismatch, and synthesize non-persisted Drafts for existing restricted
-  content without governance rows. Revised Approved content records ordered
-  Approval Stale then Submitted events. Safe unsupported content cannot be
-  approved, and same-submitter review returns the production `UNRESOLVED` policy
-  conflict without mutation.
+  derive currentness from live fingerprints. Deleted Player Power and Signature
+  Move governance rows are hard-deleted with all review events during the read;
+  this cleanup does not apply to Roleplay. Reads expose Pending mismatch and
+  synthesize non-persisted Drafts for existing restricted content without
+  governance rows. Revised Approved content records ordered Approval Stale then
+  Submitted events. Safe unsupported content cannot be approved, and
+  same-submitter review returns the production `UNRESOLVED` policy conflict
+  without mutation.
 - Phase 4C1 adds reusable Character Builder governance status/history for Player
   Powers, the Signature Move, and Roleplay Abilities. Submit/resubmit first saves
   and authoritatively rehydrates the complete draft, reloads governance, and uses
@@ -539,9 +541,10 @@ Current implementation truth:
   Pending count, and Pending, Changes Requested, Approval Stale, and Recently
   Approved views. Review preserves the immutable submitted proposal and history;
   approval requires a tier and accepts an optional note, while Request Changes
-  requires a nonblank Note to Player. Mismatched, safe-unsupported, orphaned, and
-  archived proposals remain visible with honest blockers. No current economic
-  credit, spend change, or cooldown change is applied.
+  requires a nonblank Note to Player. Mismatched and safe-unsupported proposals
+  remain visible with honest blockers. Deleted Power and Signature orphaned
+  governance is reconciled before projection; archived proposals remain visible.
+  No current economic credit, spend change, or cooldown change is applied.
 - Campaign-Custom authoring, Monster GD auto-approval provenance, a campaign-
   custom value database layer, persistent readiness, active drawback tuning/
   economics, runtime evaluation, Combat Lab integration, simulation, and Phase 6

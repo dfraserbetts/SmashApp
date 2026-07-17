@@ -209,13 +209,15 @@ Safe unsupported definitions may be submitted or returned for changes but may
 not be approved.
 
 The authenticated Character governance read model returns stored lifecycle and
-derived effective currentness, deterministic immutable history, live/submitted/
-approved fingerprint matches, orphaned history, and a non-persisted synthetic
-Draft for existing restricted content without a governance row. Unrestricted
-content receives no synthetic row. Same-submitter approval uses an explicit
-server policy seam; production remains `UNRESOLVED` and returns a stable conflict
-without mutation or event. Broader non-Restriction and reliable-enabler/context
-staleness remain open.
+derived effective currentness, deterministic immutable history, and live/submitted/
+approved fingerprint matches. Deleted Player Power and Signature Move governance
+rows (and all related review events) are hard-deleted before the read result is
+returned; they do not survive as orphaned audit history. Existing Roleplay
+deletion behavior still returns a non-persisted synthetic Draft for restricted
+content without governance. Unrestricted content receives no synthetic row.
+Same-submitter approval uses an explicit server policy seam; production remains
+`UNRESOLVED` and returns a stable conflict without mutation or event. Broader
+non-Restriction and reliable-enabler/context staleness remain open.
 
 Phase 4C1 exposes Character Builder governance status and immutable history for
 Player Powers, Signature Moves, and Roleplay Abilities. Draft, Changes Requested,

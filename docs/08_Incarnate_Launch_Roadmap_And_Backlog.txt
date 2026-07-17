@@ -1052,10 +1052,12 @@ Phase 4C2 now provides GD-only campaign Approvals navigation with a server-
 authoritative Pending count and Pending, Changes Requested, Approval Stale, and
 Recently Approved views. The panel reviews immutable submitted proposals and
 history, requires tier selection before approval, allows optional approval notes,
-and requires a nonblank Note to Player for Request Changes. Mismatch, safe
-unsupported, orphaned, and archived proposals remain visible with truthful
-eligibility and lifecycle handling. Classification applies no current economic
-credit and changes neither spend nor cooldown.
+and requires a nonblank Note to Player for Request Changes. Mismatch and safe
+unsupported proposals remain visible with truthful eligibility and lifecycle
+handling. Deleted Power and Signature governance rows are reconciled before
+projection (including related review-event cleanup); archived proposals remain
+visible with honest blockers. Classification applies no current economic credit
+and changes neither spend nor cooldown.
 
 Restrictions may be drafted and manually reviewed. The shared editor is live for
 ordinary Player Powers, the Signature Move, editable campaign Monster Powers,

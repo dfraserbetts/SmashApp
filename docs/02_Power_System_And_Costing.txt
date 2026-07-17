@@ -815,9 +815,11 @@ Stale for the prior approval and then Submitted for the revised proposal. GET
 derives effective Approval Stale immediately whenever the current live
 fingerprint differs from the approved fingerprint without mutating state.
 Existing restricted content without a governance row appears as a non-persisted
-synthetic Draft; unrestricted content does not. Deleted consumers preserve
-orphaned history. Safe unsupported definitions may be submitted or returned for
-changes but cannot be approved.
+synthetic Draft; unrestricted content does not. Deleted Player Power and
+Signature Move consumers are now hard-deleted (including all
+`PlayerRestrictionReviewEvent` rows). Roleplay deletion remains unchanged and does
+not trigger this hard-delete path. Safe unsupported definitions may be submitted
+or returned for changes but cannot be approved.
 
 A valid GD-authored Monster Restriction is immediately Approved on save with
 provenance from authenticated server context. It does not perform a Pending

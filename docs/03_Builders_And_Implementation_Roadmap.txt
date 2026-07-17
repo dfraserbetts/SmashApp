@@ -890,11 +890,14 @@ Phase 4B2 authenticated lifecycle services and API actions are implemented:
 
 - resolve Player Power, Signature Move, and Roleplay Ability consumers by stable
   ID from normalized saved builderData, preserving absent, duplicate, malformed,
-  unresolved legacy, cross-campaign, and safe unsupported diagnostics;
+  unresolved legacy, cross-campaign, and safe unsupported diagnostics while
+  hard-deleting deleted Player Power and Signature Move governance rows (and
+  review events) before returning the authenticated Character governance result;
 - expose authenticated Character governance reads with deterministic history,
   live/submitted/approved fingerprint matches, stored and effective lifecycle,
-  pending mismatch, orphaned records, and non-persisted synthetic Drafts for
-  existing restricted content without governance rows;
+  pending mismatch, and non-persisted synthetic Drafts for existing restricted
+  content without governance rows. Deleted Power and Signature Move rows are
+  removed during this read path; Roleplay deletion behavior is unchanged.
 - allow the assigned active player or campaign GD/administrator to submit the
   current saved live Restriction, while approval and Request Changes require
   authenticated GD/administrator authority;
@@ -933,8 +936,9 @@ Phase 4C2 campaign approval workflow is implemented:
   Pending count and Pending, Changes Requested, Approval Stale, and Recently
   Approved queue views;
 - review exact immutable submitted proposals with current ordinary Ability
-  context, submitted/live mismatch, safe-unsupported, orphaned, archived, and
-  immutable-history presentation kept visible;
+  context, submitted/live mismatch, safe-unsupported, deleted Power/Signature
+  orphan cleanup, archived proposals, and immutable-history presentation kept
+  visible;
 - require a selected classification tier before approval, permit an optional
   approval Note to Player, and require a nonblank Note to Player for Request
   Changes; and
