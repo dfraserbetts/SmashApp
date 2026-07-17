@@ -288,18 +288,26 @@ export function RestrictionEditor({
     || draft.kind === "MALFORMED_READ_ONLY"
   ) {
     return (
-      <section aria-labelledby={headingId} className="space-y-3 rounded-lg border border-zinc-700 bg-zinc-900/50 p-4">
-        <h3 id={headingId} className="text-sm font-semibold text-zinc-100">Restriction Editor</h3>
-        <LockedDraft
-          draft={draft}
-          consumerNoun={consumerNoun}
-          idPrefix={prefix}
-          disabled={disabled}
-          resolveCampaignReferenceLabel={resolveCampaignReferenceLabel}
-          onDraftChange={onDraftChange}
-          onConfirmReplace={onConfirmReplace}
-        />
-      </section>
+      <details
+        aria-labelledby={headingId}
+        className="rounded-lg border border-zinc-700 bg-zinc-900/50 p-4"
+        data-restriction-editor="true"
+      >
+        <summary className="cursor-pointer">
+          <h3 id={headingId} className="text-sm font-semibold text-zinc-100">Restriction Editor</h3>
+        </summary>
+        <div className="mt-3">
+          <LockedDraft
+            draft={draft}
+            consumerNoun={consumerNoun}
+            idPrefix={prefix}
+            disabled={disabled}
+            resolveCampaignReferenceLabel={resolveCampaignReferenceLabel}
+            onDraftChange={onDraftChange}
+            onConfirmReplace={onConfirmReplace}
+          />
+        </div>
+      </details>
     );
   }
 
@@ -309,39 +317,41 @@ export function RestrictionEditor({
   const operatorIssues = getRestrictionIssuesForPath(resolution.issues, "parameters.operator");
 
   return (
-    <section
+    <details
       aria-labelledby={headingId}
-      className="space-y-4 rounded-lg border border-zinc-700 bg-zinc-900/50 p-4"
+      className="rounded-lg border border-zinc-700 bg-zinc-900/50 p-4"
       data-restriction-editor="true"
     >
-      <div>
+      <summary className="cursor-pointer">
         <h3 id={headingId} className="text-sm font-semibold text-zinc-100">Restriction Editor</h3>
+      </summary>
+
+      <div className="mt-4 space-y-4">
         <p className="mt-1 text-xs text-zinc-400">
           Author one whole-{consumerNoun} eligibility condition. This foundation does not enforce runtime eligibility or approval.
         </p>
-      </div>
 
-      <fieldset disabled={disabled} className="space-y-2 rounded-md border border-zinc-700 p-3">
-        <legend className="px-1 text-xs font-semibold text-zinc-200">Restriction authoring</legend>
-        {RESTRICTION_EDITOR_AUTHORING_CHOICES.map((choice) => {
-          const inputId = `${prefix}-choice-${choice.value.toLowerCase()}`;
-          return (
-            <label key={choice.value} htmlFor={inputId} className="flex items-start gap-2 text-sm text-zinc-200">
-              <input
-                id={inputId}
-                type="radio"
-                name={`${prefix}-authoring-choice`}
-                value={choice.value}
-                checked={currentChoice === choice.value}
-                disabled={disabled}
-                className="mt-1 focus-visible:ring-2 focus-visible:ring-emerald-500"
-                onChange={() => onDraftChange(selectRestrictionAuthoringChoice(draft, choice.value))}
-              />
-              <span>{choice.label}</span>
-            </label>
-          );
-        })}
-      </fieldset>
+        <fieldset disabled={disabled} className="space-y-2 rounded-md border border-zinc-700 p-3">
+          <legend className="px-1 text-xs font-semibold text-zinc-200">Restriction authoring</legend>
+          {RESTRICTION_EDITOR_AUTHORING_CHOICES.map((choice) => {
+            const inputId = `${prefix}-choice-${choice.value.toLowerCase()}`;
+            return (
+              <label key={choice.value} htmlFor={inputId} className="flex items-start gap-2 text-sm text-zinc-200">
+                <input
+                  id={inputId}
+                  type="radio"
+                  name={`${prefix}-authoring-choice`}
+                  value={choice.value}
+                  checked={currentChoice === choice.value}
+                  disabled={disabled}
+                  className="mt-1 focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  onChange={() => onDraftChange(selectRestrictionAuthoringChoice(draft, choice.value))}
+                />
+                <span>{choice.label}</span>
+              </label>
+            );
+          })}
+        </fieldset>
 
       {disabled ? (
         <p className="rounded border border-zinc-700 bg-zinc-950/60 p-2 text-xs text-zinc-400">
@@ -473,7 +483,8 @@ export function RestrictionEditor({
         </div>
       ) : null}
 
-      <RestrictionStatusPanels resolution={resolution} idPrefix={prefix} />
-    </section>
+        <RestrictionStatusPanels resolution={resolution} idPrefix={prefix} />
+      </div>
+    </details>
   );
 }

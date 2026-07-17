@@ -422,6 +422,9 @@ function renderEditor(editorDraft: RestrictionEditorDraft, extra: Record<string,
 }
 
 const noneMarkup = renderEditor(createEmptyRestrictionDraft());
+includes(noneMarkup, '<details', "Restriction editor uses the page's native collapsible-chevron pattern.");
+includes(noneMarkup, '<summary class="cursor-pointer"><h3', "Restriction Editor heading is the collapse/expand control.");
+ok(!noneMarkup.includes('<details open=""'), "Restriction editor is collapsed by default.");
 includes(noneMarkup, "Restriction authoring", "No Restriction editor has a fieldset legend.");
 includes(noneMarkup, "No Restriction", "No Restriction choice is visibly labeled.");
 includes(noneMarkup, "Restriction Descriptor", "Descriptor panel renders separately.");
@@ -453,6 +456,8 @@ includes(customWarningMarkup, "Warnings", "Custom Narrative warning is visually 
 includes(customWarningMarkup, "GD review and manual adjudication", "Custom Narrative explains its review requirement.");
 
 const campaignMarkup = renderEditor(campaignDraft);
+includes(campaignMarkup, '<details', "Locked Restriction editor remains collapsible.");
+includes(campaignMarkup, 'data-restriction-editor="true"', "Locked Restriction editor keeps the shared composition boundary.");
 includes(campaignMarkup, "Campaign-Custom authoring is not available yet", "Campaign-Custom locked state explains deferral.");
 includes(campaignMarkup, "Deliberate replacement", "Campaign-Custom requires a deliberate replacement action.");
 includes(campaignMarkup, "Replace with No Restriction", "Campaign-Custom can be deliberately cleared.");
