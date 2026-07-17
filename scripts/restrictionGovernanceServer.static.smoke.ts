@@ -63,7 +63,7 @@ check(server.includes("loadTransactionalAccess"), "Write service rechecks access
 check(server.includes("campaignId: params.campaignId"), "Every action scopes persistence by route campaign.");
 
 // Transactionality, immutable events, and optimistic concurrency.
-check(count(server, /prisma\.\$transaction\(async \(tx\)/gu) === 3, "All three lifecycle writes use callback transactions.");
+check(count(server, /prisma\.\$transaction\(async \(tx\)/gu) === 4, "All three lifecycle writes and the cleanup-aware Character read use callback transactions.");
 check(server.includes("normalizePlayerRestrictionGovernanceRow(step.row)"), "Every proposed current row is revalidated before write.");
 check(server.includes("normalizePlayerRestrictionReviewEvent(step.event)"), "Every proposed immutable event is revalidated before write.");
 check(server.includes("playerRestrictionReviewEvent.create"), "Actions append review events.");

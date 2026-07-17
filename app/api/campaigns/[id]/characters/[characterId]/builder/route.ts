@@ -27,6 +27,7 @@ import {
 import { getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError } from "@/lib/powers/authoringRules";
 import { validateRawPlayerPowerRestrictionWrite } from "@/lib/restrictions/playerPowerEditorIntegration";
 import { validateRawRoleplayAbilityRestrictionWrite } from "@/lib/restrictions/roleplayAbilityEditorIntegration";
+import { deleteOrphanedGovernedPowerRowsForCharacter } from "@/lib/restrictions/governanceCleanupServer";
 import {
   applyAutomaticExpectedTargetsToPower,
   applyAutomaticExpectedTargetsToPowers,
@@ -594,25 +595,34 @@ export async function PATCH(
     if (level !== undefined) data.level = level;
     data.builderData = JSON.parse(JSON.stringify(synchronizedBuilderData)) as Prisma.InputJsonValue;
 
-    const character = await prisma.campaignCharacter.update({
-      where: { id: targetCharacterId },
-      data,
-      select: {
-        id: true,
-        campaignId: true,
-        name: true,
-        imageUrl: true,
-        age: true,
-        race: true,
-        description: true,
-        level: true,
-        builderData: true,
-        assignedUserId: true,
-        archivedAt: true,
-        archiveReason: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const character = await prisma.$transaction(async (tx) => {
+      const savedCharacter = await tx.campaignCharacter.update({
+        where: { id: targetCharacterId },
+        data,
+        select: {
+          id: true,
+          campaignId: true,
+          name: true,
+          imageUrl: true,
+          age: true,
+          race: true,
+          description: true,
+          level: true,
+          builderData: true,
+          assignedUserId: true,
+          archivedAt: true,
+          archiveReason: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      await deleteOrphanedGovernedPowerRowsForCharacter({
+        client: tx,
+        campaignId,
+        characterId: savedCharacter.id,
+        builderData: synchronizedBuilderData,
+      });
+      return savedCharacter;
     });
 
     return NextResponse.json({

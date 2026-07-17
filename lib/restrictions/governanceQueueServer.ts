@@ -25,6 +25,7 @@ import {
   buildPersistedPlayerRestrictionGovernanceReadEntry,
   PRODUCTION_SELF_APPROVAL_POLICY,
 } from "@/lib/restrictions/governanceServer";
+import { reconcileOrphanedGovernedPowerRowsForCampaign } from "@/lib/restrictions/governanceCleanupServer";
 import { getLatestPlayerFacingRestrictionReviewNote } from "@/lib/restrictions/governanceView";
 import { renderPowerDescriptorLines } from "@/lib/summoning/render";
 import { prisma } from "@/prisma/client";
@@ -109,7 +110,12 @@ async function loadCampaignRestrictionQueueProjection(params: {
   actorUserId: string;
 }): Promise<CampaignRestrictionQueueReadModel> {
   await requireCampaignGameDirector(params.campaignId, params.actorUserId);
-  const campaign = await prisma.campaign.findUnique({
+  return prisma.$transaction(async (tx) => {
+    await reconcileOrphanedGovernedPowerRowsForCampaign({
+      client: tx,
+      campaignId: params.campaignId,
+    });
+    const campaign = await tx.campaign.findUnique({
     where: { id: params.campaignId },
     select: {
       id: true,
@@ -145,15 +151,15 @@ async function loadCampaignRestrictionQueueProjection(params: {
       },
     },
   });
-  if (!campaign) throw new Error("NOT_FOUND");
+    if (!campaign) throw new Error("NOT_FOUND");
 
-  const membershipByUserId = new Map(
-    campaign.members.map((member) => [member.userId, member]),
-  );
-  const builderDataByCharacterId = new Map<string, CharacterBuilderData>();
-  const items: CampaignRestrictionQueueItem[] = [];
+    const membershipByUserId = new Map(
+      campaign.members.map((member) => [member.userId, member]),
+    );
+    const builderDataByCharacterId = new Map<string, CharacterBuilderData>();
+    const items: CampaignRestrictionQueueItem[] = [];
 
-  for (const row of campaign.playerRestrictionGovernance) {
+    for (const row of campaign.playerRestrictionGovernance) {
     let builderData = builderDataByCharacterId.get(row.characterId);
     if (!builderData) {
       builderData = normalizeBuilderData(row.character.builderData);
@@ -247,12 +253,13 @@ async function loadCampaignRestrictionQueueProjection(params: {
     }));
   }
 
-  const grouped = groupCampaignRestrictionQueueItems(items);
-  return Object.freeze({
-    campaign: Object.freeze({ id: campaign.id, name: campaign.name }),
-    access: Object.freeze({ canManageCampaign: true as const }),
-    groups: grouped.groups,
-    counts: grouped.counts,
+    const grouped = groupCampaignRestrictionQueueItems(items);
+    return Object.freeze({
+      campaign: Object.freeze({ id: campaign.id, name: campaign.name }),
+      access: Object.freeze({ canManageCampaign: true as const }),
+      groups: grouped.groups,
+      counts: grouped.counts,
+    });
   });
 }
 

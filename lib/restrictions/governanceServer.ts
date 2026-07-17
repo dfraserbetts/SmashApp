@@ -16,6 +16,7 @@ import {
   type PlayerRestrictionConsumer,
   type RestrictionTier,
 } from "@/lib/restrictions/governance";
+import { deleteOrphanedGovernedPowerRowsForCharacter } from "@/lib/restrictions/governanceCleanupServer";
 import {
   derivePlayerRestrictionGovernanceReadFacts,
   planApproveRestriction,
@@ -525,29 +526,41 @@ export async function loadCharacterRestrictionGovernance(params: {
   actorUserId: string;
 }): Promise<CharacterRestrictionGovernanceReadModel> {
   const access = await requireCampaignAccess(params.campaignId, params.actorUserId);
-  const character = await prisma.campaignCharacter.findFirst({
-    where: { id: params.characterId, campaignId: params.campaignId },
-    select: {
-      id: true,
-      assignedUserId: true,
-      archivedAt: true,
-      builderData: true,
-      restrictionGovernance: {
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        include: { events: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
+  return prisma.$transaction(async (tx) => {
+    const character = await tx.campaignCharacter.findFirst({
+      where: { id: params.characterId, campaignId: params.campaignId },
+      select: {
+        id: true,
+        assignedUserId: true,
+        archivedAt: true,
+        builderData: true,
       },
-    },
+    });
+    if (!character) serviceError("CHARACTER_NOT_FOUND", "Character not found.", 404);
+    if (!canReadCharacter(access, character)) {
+      serviceError("FORBIDDEN", "You cannot inspect this Character's Restriction governance.", 403);
+    }
+    const builderData = normalizeBuilderData(character.builderData);
+    await deleteOrphanedGovernedPowerRowsForCharacter({
+      client: tx,
+      campaignId: params.campaignId,
+      characterId: character.id,
+      builderData,
+    });
+    const restrictionGovernance = await tx.playerRestrictionGovernance.findMany({
+      where: { characterId: character.id, campaignId: params.campaignId },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      include: {
+        events: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      },
+    });
+    return buildCharacterReadModel(
+      params.campaignId,
+      character.id,
+      builderData,
+      restrictionGovernance,
+    );
   });
-  if (!character) serviceError("CHARACTER_NOT_FOUND", "Character not found.", 404);
-  if (!canReadCharacter(access, character)) {
-    serviceError("FORBIDDEN", "You cannot inspect this Character's Restriction governance.", 403);
-  }
-  return buildCharacterReadModel(
-    params.campaignId,
-    character.id,
-    character.builderData,
-    character.restrictionGovernance,
-  );
 }
 
 export async function loadPlayerRestrictionGovernanceRecord(params: {
