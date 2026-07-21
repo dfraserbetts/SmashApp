@@ -909,12 +909,15 @@ Valid unrestricted Player Power, Signature Move, and Roleplay content does not
 wait for Restriction approval and remains print-eligible subject to ordinary
 validation. Restricted content is print-eligible only while current `APPROVED`;
 Draft, Pending, Changes Requested, Approval Stale, malformed, unresolved legacy,
-and missing-governance restricted content is omitted from the future table-ready
-projection. Approved Roleplay remains print-eligible despite unavailable numeric
-economics. The editor/live preview may show draft content with status. Later
-Print Mode must deterministically project approved content before budgets and
-CharacterSheetPreview are calculated; CSS-only hiding is prohibited. Phase 4A2
-defines this pure projection contract but does not integrate Print Mode.
+missing-governance, unsupported, mismatched, and governance-unavailable
+restricted content is omitted from the table-ready projection. Approved Roleplay
+remains print-eligible despite unavailable numeric economics. The editor/live
+preview may show draft content with status. Phase 4C3 now applies an immutable,
+deterministic projection before derived stats, ordinary Power and Signature Move
+budgets, and CharacterSheetPreview. Omitted consumers and readable reasons appear
+only in non-printing Print Setup; governance failure retains unrestricted content
+and fails closed for restricted content. Print remains available. CSS-only hiding
+is prohibited, and printed budgets include only projected gross-cost Powers.
 
 Consumer, Persistence, Economic, And Runtime Boundaries
 
@@ -1027,10 +1030,13 @@ approval notes, and note-required Request Changes. Campaign-Custom authoring,
 Monster GD auto-approval provenance, a campaign-custom value database layer,
 persistent readiness, active drawback tuning, credit application, runtime
 evaluation, Combat Lab integration, simulation, and Phase 6 surface polish and
-migration diagnostics remain absent. Print Mode projection is the final remaining
-implementation phase of the current Player Restriction Governance beta. Self-
-approval remains unresolved. The Oath rate and exceptional combined cap remain
-open. The complete Restriction project is not production-complete.
+migration diagnostics remain absent. Phase 4C3 adds the pure table-ready print
+projection and integrates it before printed budgets and rendering for Player
+Power, Signature Move, and Roleplay consumers. It activates no percentage credit,
+Net BPV, discounted Player spend, cooldown change, tuning, or persistence. The
+Player Restriction Authoring and Governance Beta is now testable end-to-end.
+Self-approval remains unresolved. The Oath rate and exceptional combined cap
+remain open. The complete Restriction project is not production-complete.
 A future
 runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
 exact enum names and implementation are separately authorized later work.

@@ -792,8 +792,8 @@ Shared Restriction Authoring - Implementation Sequence
 
 LOCKED AUTHORING MODEL / PHASES 1-3, PHASE 4A2 PURE FOUNDATION, PHASE 4B1
 PLAYER GOVERNANCE PERSISTENCE, PHASE 4B2 AUTHENTICATED LIFECYCLE SERVICES, AND
-PHASE 4C1 CHARACTER BUILDER INTEGRATION AND PHASE 4C2 CAMPAIGN APPROVAL WORKFLOW
-IMPLEMENTED.
+PHASE 4C1 CHARACTER BUILDER INTEGRATION, PHASE 4C2 CAMPAIGN APPROVAL WORKFLOW,
+AND PHASE 4C3 TABLE-READY PRINT PROJECTION IMPLEMENTED.
 The shared editor serves Player
 Character Powers, Roleplay Abilities, and GD-authored Monster Powers while
 respecting their different storage adapters. Player governance persistence is
@@ -858,7 +858,8 @@ Phase 4A2 pure foundation is implemented:
   semantic fingerprint change; and introduce no combat-runtime use blocking;
 - keep valid unrestricted content print-eligible without Restriction approval,
   require current Approved governance for restricted Player/Signature/Roleplay
-  print inclusion, and defer actual pre-budget Print Mode projection;
+  print inclusion, and leave actual pre-budget Print Mode projection to the
+  later Phase 4C3 integration now implemented;
 - define a pure versioned tuning contract and BPV-domain resolver with ordinary
   rates 0.10/0.20/0.30, standard 0.50 combined cap, 1 BPV floor, and final upward
   0.5 BPV rounding, while requiring but not inventing the open Oath rate and
@@ -945,11 +946,24 @@ Phase 4C2 campaign approval workflow is implemented:
 - reuse authenticated Phase 4B2 transitions without activating Restriction
   credit, changing current Power spend/cooldown, or resolving self-approval.
 
+Phase 4C3 table-ready print projection is implemented:
+
+- load the saved Character Builder payload and existing Character governance
+  endpoint, then project Player Powers, the Signature Move, and Roleplay Abilities
+  before derived stats, printed budgets, and CharacterSheetPreview;
+- include valid unrestricted content without approval and restricted content only
+  when current Approved governance and the saved semantic fingerprint match;
+- omit non-current, malformed, unresolved-legacy, unsupported, mismatched, and
+  governance-unavailable restricted content with deterministic readable Print
+  Setup reasons while leaving Print available;
+- calculate printed ordinary Power and Signature Move budgets only from included
+  content at unchanged gross cost, with no Restriction economics or cooldown
+  change; and
+- keep the projection pure, immutable, and outside the Character Builder live
+  preview, Prisma, active tuning, and runtime.
+
 Later Phase 4 work must:
 
-- integrate the deterministic approved-content projection into Print Mode before
-  budgets and CharacterSheetPreview; this is the final remaining implementation
-  phase of the current Player Restriction Governance beta;
 - preserve direct semantic fingerprint staleness without prematurely deciding
   the three wider-context governance questions; and
 - immediately approve valid GD-authored Monster Restrictions on save with
@@ -1015,13 +1029,15 @@ versus table-readiness reporting are complete. Valid gross-overspent drafts can
 save, but no provisional or active credit applies and approved tiers remain
 classification only. Phase 4C2 campaign Approvals navigation, Pending count,
 four review views, immutable proposal review, tier-gated approval, optional
-approval notes, and note-required Request Changes are complete. Campaign-Custom
-authoring, Monster GD auto-approval provenance implementation, a campaign-custom
-value database layer, persistent readiness, active drawback tuning and discount
-application, runtime and Combat Lab evaluation, simulation, and Phase 6 surface
-polish and migration diagnostics remain absent. Print Mode projection is the
-final remaining implementation phase of the current Player Restriction
-Governance beta.
+approval notes, and note-required Request Changes are complete. Phase 4C3 now
+projects table-ready Player Power, Signature Move, and Roleplay content before
+printed budgets and rendering, identifies omissions in non-printing Print Setup,
+retains Print, and applies no economic credit. The Player Restriction Authoring
+and Governance Beta is testable end-to-end. Campaign-Custom authoring, Monster GD
+auto-approval provenance implementation, a campaign-custom value database layer,
+persistent readiness, active drawback tuning and discount application, runtime
+and Combat Lab evaluation, simulation, and Phase 6 surface polish and migration
+diagnostics remain absent.
 The complete Restriction project is not production-complete.
 
 The Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`, and

@@ -544,12 +544,14 @@ no current Roleplay credit.
 Valid unrestricted Roleplay content needs no Restriction approval for print.
 Restricted Roleplay content is print-eligible only while current Approved;
 Draft, Pending, Changes Requested, Approval Stale, malformed, unresolved legacy,
-and missing-governance content is omitted from the future table-ready projection.
-Approved Roleplay is print-eligible despite unavailable economics. The actual
-pre-budget Print Mode projection, warning/count UI, and persistent readiness
-remain deferred. Print Mode projection is the final remaining implementation
-phase of the current Player Restriction Governance beta. Character Builder
-readiness is derived and not persisted.
+missing-governance, unsupported, mismatched, and governance-unavailable content
+is omitted from the table-ready projection. Approved Roleplay is print-eligible
+despite unavailable economics. Phase 4C3 now projects Roleplay content with
+Player Powers and the Signature Move before printed calculations and
+CharacterSheetPreview. Non-printing Print Setup identifies omitted Abilities and
+readable reasons; governance failure retains unrestricted Roleplay and fails
+closed for restricted Roleplay. Print remains available. Persistent readiness
+remains deferred, and Character Builder readiness is derived and not persisted.
 
 Whether a GD may approve a Restriction on their own Player Character, whether
 broader non-Restriction character-build edits stale approval, and whether
@@ -590,7 +592,10 @@ readiness/print policy, Phase 4B1 relational persistence, Phase 4B2 authenticate
 lifecycle actions, Phase 4C1 Character Builder workflow, and Phase 4C2 campaign
 approval workflow exist. Valid gross-overspent drafts can save, but no provisional
 or active credit exists and an approved tier is classification only. No persistent
-readiness, economic resolver, Print Mode filter, or runtime behaviour exists.
+readiness, economic resolver, or runtime behaviour exists. Phase 4C3 provides the
+table-ready Print Mode filter without adding Roleplay Potential, numeric credit,
+discounted spend, cooldown, tuning, persistence, or runtime enforcement. The
+Player Restriction Authoring and Governance Beta is testable end-to-end.
 Oath rate and the exceptional combined cap remain open, self-approval remains
 unresolved, and Monster authenticated provenance remains outside the Player
 persistence tables.

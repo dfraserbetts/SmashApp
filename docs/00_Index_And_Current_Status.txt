@@ -230,14 +230,21 @@ tier is classification only.
 
 Phase 4C2 provides GD-only campaign Approvals navigation, a server-authoritative
 Pending count, four review views, and immutable submitted-proposal review with
-tier-gated approval and note-required Request Changes. No print filtering,
-persistent readiness, active drawback tuning, economic resolution, or active
-discount application exists. Campaign-Custom authoring, Monster approval
-provenance, runtime and Combat Lab evaluation, simulation, and Phase 6 surface
-polish and migration diagnostics remain deferred. Print Mode projection is the
-final remaining implementation phase of the current Player Restriction Governance
-beta. The Oath rate and exceptional combined cap remain open, and self-approval
-remains unresolved. The complete Restriction project is not production-complete.
+tier-gated approval and note-required Request Changes. Phase 4C3 now projects
+table-ready Player Power, Signature Move, and Roleplay content before derived
+stats, printed budgets, and CharacterSheetPreview rendering. Valid unrestricted
+content prints without Restriction approval; restricted content prints only when
+saved governance proves current approval and a matching semantic fingerprint.
+Omitted content and deterministic readable reasons appear in non-printing Print
+Setup, governance failure fails closed only for restricted content, and Print
+remains available. Printed Power budgets use included gross-cost content only.
+No active Restriction credit, spend discount, or cooldown change exists.
+Campaign-Custom authoring, Monster approval provenance, runtime and Combat Lab
+evaluation, simulation, and Phase 6 surface polish and migration diagnostics
+remain deferred. The Player Restriction Authoring and Governance Beta is now
+testable end-to-end. The Oath rate and exceptional combined cap remain open,
+self-approval remains unresolved, and the complete Restriction project is not
+production-complete.
 
 The ordinary Player tiers are `MATERIAL_LIMITATION` / Material Limitation at
 10%, `SUBSTANTIAL_LIMITATION` / Substantial Limitation at 20%, and
@@ -257,9 +264,13 @@ overspent but are not table-ready. Changes Requested and Approval Stale are also
 not table-ready; semantic edits immediately stale approval and suspend credit.
 Valid unrestricted content needs no Restriction approval for final print.
 Restricted Player Power, Signature Move, and Roleplay content is print-eligible
-only while its Restriction approval and fingerprint are current. The actual
-approved-content projection must later occur before budgets and
-CharacterSheetPreview, and is not integrated yet.
+only while its Restriction approval and fingerprint are current. Print Mode now
+applies that immutable projection before derived stats, Power and Signature Move
+budgets, and CharacterSheetPreview. Draft, Pending, Changes Requested, Approval
+Stale, missing-governance, malformed, unresolved-legacy, unsupported, mismatched,
+and governance-unavailable restricted content is omitted and identified in
+non-printing Print Setup. The Print action remains available, and included
+restricted Powers retain their existing gross cost with no economic credit.
 
 Exact standard template inventory, specific pregen Restrictions, scenario
 assumptions, the Oath rate, exceptional combined cap, and Power Burden rates
@@ -509,7 +520,8 @@ law until the owning active doc is updated with an explicit decision.
   Status: RESTRICTION SHARED AUTHORING PHASES 1-3, PHASE 4A2 PURE FOUNDATION,
   PHASE 4B1 PLAYER GOVERNANCE PERSISTENCE, PHASE 4B2 AUTHENTICATED LIFECYCLE,
   PHASE 4C1 CHARACTER BUILDER INTEGRATION, AND PHASE 4C2 CAMPAIGN APPROVAL
-  WORKFLOW IMPLEMENTED / ACTIVE ECONOMICS, PRINT INTEGRATION, LATER PHASES,
+  WORKFLOW AND PHASE 4C3 TABLE-READY PRINT PROJECTION IMPLEMENTED / ACTIVE
+  ECONOMICS, LATER PHASES,
   SPECIFIC CONTENT, AND RUNTIME OPEN; SPARK OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and
   docs/03_Builders_And_Implementation_Roadmap.txt.
@@ -537,10 +549,12 @@ law until the owning active doc is updated with an explicit decision.
   visible with honest action blockers. Exact standard template inventory,
   Campaign-Custom authoring, Monster provenance, active tuning/economics, runtime
   and Combat Lab integration, specific content, and Phase 6 polish remain later
-  work. Print Mode projection is the final remaining implementation phase of the
-  current Player Restriction Governance beta. The Oath rate, exceptional cap, and
-  three governance questions listed in the status section above remain explicitly
-  unresolved.
+  work. Phase 4C3 projects saved table-ready Player/Signature/Roleplay content
+  before printed budgets and rendering, reports omissions in non-printing Print
+  Setup, and leaves Print available without activating economic credit. The
+  current Player Restriction Authoring and Governance Beta is testable end-to-end.
+  The Oath rate, exceptional cap, and three governance questions listed in the
+  status section above remain explicitly unresolved.
 - Transformation/Summoning/object/structure/machine/mount builder scopes.
   Status: OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and
