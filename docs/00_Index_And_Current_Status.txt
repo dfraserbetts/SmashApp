@@ -246,6 +246,12 @@ testable end-to-end. The Oath rate and exceptional combined cap remain open,
 self-approval remains unresolved, and the complete Restriction project is not
 production-complete.
 
+The canonical acceptance record is
+`docs/restriction-governance-beta-sign-off-pack.md`. Architect browser sign-off
+passed on Local and Vercel for signed commit `5e5e7183...`. The accepted beta
+implementation is frozen; future Restriction work is regression-only unless the
+Architect explicitly reopens a deferred phase.
+
 The ordinary Player tiers are `MATERIAL_LIMITATION` / Material Limitation at
 10%, `SUBSTANTIAL_LIMITATION` / Substantial Limitation at 20%, and
 `NARROW_AVAILABILITY` / Narrow Availability at 30% of unrestricted Gross BPV.

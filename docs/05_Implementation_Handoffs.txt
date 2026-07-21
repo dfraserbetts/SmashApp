@@ -562,6 +562,11 @@ Current implementation truth:
   surface polish and migration diagnostics remain absent. The Player Restriction
   Authoring and Governance Beta is testable end-to-end. The complete Restriction
   project is not production-complete.
+- The canonical acceptance and evidence record is
+  `docs/restriction-governance-beta-sign-off-pack.md`. Architect browser sign-off
+  passed on Local and Vercel for signed commit `5e5e7183...`. The accepted beta
+  implementation is frozen; future Restriction work is regression-only unless
+  the Architect explicitly reopens a deferred phase.
 - Core/read-only Monsters remain non-editable and are copied into campaign-local
   editable Monsters through the existing workflow.
 

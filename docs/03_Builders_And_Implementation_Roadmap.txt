@@ -1040,6 +1040,12 @@ and Combat Lab evaluation, simulation, and Phase 6 surface polish and migration
 diagnostics remain absent.
 The complete Restriction project is not production-complete.
 
+Canonical beta acceptance evidence is recorded in
+`docs/restriction-governance-beta-sign-off-pack.md`. Architect browser sign-off
+passed on Local and Vercel for signed commit `5e5e7183...`. This accepted beta
+implementation is frozen; further Restriction implementation is regression-only
+unless the Architect explicitly reopens a deferred phase.
+
 The Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`, and
 `restrictionText` fields are deprecated transitional migration inputs only;
 their UI has been removed. CharacterPower

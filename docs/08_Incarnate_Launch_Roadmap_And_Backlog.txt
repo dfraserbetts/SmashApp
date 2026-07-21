@@ -1106,6 +1106,12 @@ scenario assumptions, Oath/Power Burden rates and exceptional cap, runtime
 enforcement, Combat Lab execution, and simulation remain future work. The complete
 Restriction project is not production-complete.
 
+The canonical beta acceptance record is
+`docs/restriction-governance-beta-sign-off-pack.md`. Architect browser sign-off
+passed on Local and Vercel for signed commit `5e5e7183...`. The accepted beta
+implementation is frozen; future Restriction work is regression-only unless the
+Architect explicitly reopens a deferred phase.
+
 Restrictions do not add upside. If text says "only works on allies, but doubles
 effect," the "doubles effect" part is not a restriction. Upside belongs to
 Archetypes, racial traits, Characteristics, special features, or explicit
