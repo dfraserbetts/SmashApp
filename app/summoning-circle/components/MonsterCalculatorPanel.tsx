@@ -159,6 +159,15 @@ export function MonsterCalculatorPanel({
   const legacyControlPackages = Array.isArray(legacyControlDelivery.packages)
     ? legacyControlDelivery.packages.map(asRecord)
     : [];
+  const levelRelativeControlStrength = Number(
+    legacyControlDelivery.levelRelativeControlStrength,
+  );
+  const controlRadarDisplayScore = Number(legacyControlDelivery.radarDisplayScore);
+  const controlReferenceRatio = Number(controlPressureModel.ratioToBaseline);
+  const controlLevel = Number(legacyControlDelivery.level);
+  const controlExceedsLevelEnvelope =
+    Number.isFinite(levelRelativeControlStrength) &&
+    levelRelativeControlStrength > 10;
 
   return (
     <section className="sticky top-12 lg:top-0 z-20 max-h-[calc(100vh-3rem)] lg:max-h-screen overflow-y-auto rounded border border-zinc-800 bg-zinc-900/95 p-4 space-y-3 shadow">
@@ -281,9 +290,29 @@ export function MonsterCalculatorPanel({
                   <p className="font-medium">Control Strength and Encounter Availability</p>
                   <p className="mt-1 text-sky-200/80">
                     Level-relative per-use Control Strength {formatDecimal(
-                      Number(legacyControlDelivery.levelRelativeControlStrength),
+                      levelRelativeControlStrength,
                     )}
+                    {" · "}Radar display {controlExceedsLevelEnvelope
+                      ? "10+ (plotted at 10)"
+                      : formatDecimal(controlRadarDisplayScore)}
+                    {" · "}Level reference ratio {formatDecimal(controlReferenceRatio)}×
                   </p>
+                  {controlExceedsLevelEnvelope && (
+                    <div
+                      role="alert"
+                      className="mt-2 rounded border border-red-700/80 bg-red-950/40 p-2 text-red-100"
+                    >
+                      <p className="font-semibold">
+                        Exceeds the Level {Number.isFinite(controlLevel) ? controlLevel : "current"} control envelope.
+                      </p>
+                      <p className="mt-1 text-red-200/90">
+                        This Power has substantially more opposed-success penetration
+                        than the expected Level {Number.isFinite(controlLevel) ? controlLevel : "current"} package.
+                        It is highly resistant to cancellation by stronger defence,
+                        Resist Powers and assistance. BPV and cooldown continue to rise.
+                      </p>
+                    </div>
+                  )}
                   <div className="mt-2 space-y-2">
                     {legacyControlPackages.map((controlPackage, index) => {
                       const robustness = asRecord(
@@ -316,13 +345,6 @@ export function MonsterCalculatorPanel({
                             {" · "}Encounter Availability {formatDecimal(Number(controlPackage.availability))}
                             {" · "}Encounter Control {formatDecimal(Number(controlPackage.encounterControlProxy))}
                           </p>
-                          {Number(controlPackage.expectedPositiveNetSuccesses) >= 5 && (
-                            <p className="mt-1 text-amber-200">
-                              Control penetration is far above the Level 3 reference
-                              package. The Power is highly resistant to cancellation,
-                              but BPV and cooldown continue to rise.
-                            </p>
-                          )}
                         </div>
                       );
                     })}
@@ -355,7 +377,8 @@ export function MonsterCalculatorPanel({
                 <p className="mt-2 text-zinc-500">
                   Supported control packages are compared with the expected package
                   for the creature&apos;s level, tier, and Legendary state before
-                  conversion to a 0-10 Control Pressure score.
+                  conversion to an uncapped Level-relative Control Strength score.
+                  The radar polygon is displayed on a 0-10 scale.
                 </p>
                 <pre className="mt-2 overflow-auto">
                   {JSON.stringify(

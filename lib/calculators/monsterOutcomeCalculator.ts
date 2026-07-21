@@ -2437,25 +2437,19 @@ export function normalizeLevel3LegacyControlStrength(params: {
   perUseControlProxy: number;
   baselinePerUseControlProxy: number;
   midpointScore: number;
-  logRatioCoefficient: number;
+  ratioExponent: number;
 }): number {
   if (
     params.perUseControlProxy <= 0 ||
     params.baselinePerUseControlProxy <= 0 ||
-    params.midpointScore <= 0
+    params.midpointScore <= 0 ||
+    params.ratioExponent <= 0
   ) {
     return 0;
   }
   const ratio = params.perUseControlProxy / params.baselinePerUseControlProxy;
-  return clampRadarScore(
-    10 /
-      (1 +
-        Math.exp(
-          -(
-            Math.log10(ratio) * params.logRatioCoefficient
-          ) / (params.midpointScore / 2),
-        )),
-  );
+  const score = params.midpointScore * Math.pow(ratio, params.ratioExponent);
+  return Number.isFinite(score) ? score : 0;
 }
 
 function controlPressureFunctionalSignature(
@@ -3437,6 +3431,7 @@ function buildControlPressureAxisBaselineModel(params: {
     recurrence: actual.values.recurrence,
     cooldownAvailability: actual.values.availability,
     legacyControlDelivery: {
+      level,
       sourceAttribute: "Attack",
       actualSourceDie: params.monster.attackDie,
       resistanceReference:
@@ -3487,6 +3482,7 @@ function buildControlPressureAxisBaselineModel(params: {
       rawBaselineControlPressureProxy: null,
       ratioToBaseline: null,
       uncappedScore: null,
+      radarDisplayScore: null,
       finalScore: null,
       capped: false,
       capReason: null,
@@ -3509,17 +3505,19 @@ function buildControlPressureAxisBaselineModel(params: {
               : 0,
           baselinePerUseControlProxy: baselineDelivery.perUseControlProxy,
           midpointScore: tuning.midpointScore,
-          logRatioCoefficient: tuning.logRatioScale,
+          ratioExponent: tuning.ratioExponent,
         });
-        const finalScore = clampRadarScore(uncappedScore);
+        const radarDisplayScore = clampRadarScore(uncappedScore);
+        const finalScore = uncappedScore;
         return {
           ...common,
           legacyControlDelivery: {
             ...common.legacyControlDelivery,
-            levelRelativeControlStrength: finalScore,
+            levelRelativeControlStrength: uncappedScore,
+            radarDisplayScore,
             baselinePerUseControlProxy: baselineDelivery.perUseControlProxy,
             normalization:
-              `Bounded logistic of ${tuning.logRatioScale} × log10(per-use strength / tier reference), midpoint ${tuning.midpointScore}`,
+              `${tuning.midpointScore} × (per-use strength / tier reference) ^ ${tuning.ratioExponent}; uncapped internally and visually capped at 10 on the radar`,
           },
           mode: "LEVEL_3_BASELINE_RELATIVE",
           calibrated: true,
@@ -3538,10 +3536,11 @@ function buildControlPressureAxisBaselineModel(params: {
           rawBaselineControlPressureProxy: baselineDelivery.perUseControlProxy,
           ratioToBaseline: ratio,
           uncappedScore,
+          radarDisplayScore,
           finalScore,
-          capped: finalScore !== uncappedScore,
+          capped: radarDisplayScore !== uncappedScore,
           capReason:
-            finalScore !== uncappedScore
+            radarDisplayScore !== uncappedScore
               ? uncappedScore > 10
                 ? "MAX_10"
                 : "MIN_0"
@@ -3573,6 +3572,7 @@ function buildControlPressureAxisBaselineModel(params: {
         rawBaselineControlPressureProxy: null,
         ratioToBaseline: null,
         uncappedScore: 0,
+        radarDisplayScore: 0,
         finalScore: 0,
         capped: false,
         capReason: null,
@@ -3649,6 +3649,7 @@ function buildControlPressureAxisBaselineModel(params: {
     ratioToBaseline:
       throughput.totalDeliveredProxy / tierBaseline.baselineProxy,
     uncappedScore,
+    radarDisplayScore: finalScore,
     finalScore,
     capped: finalScore !== uncappedScore,
     capReason:

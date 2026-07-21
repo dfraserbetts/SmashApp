@@ -1,13 +1,23 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
+import { MonsterCalculatorPanel } from "../app/summoning-circle/components/MonsterCalculatorPanel";
+import {
+  formatRadarAxisDisplayValue,
+  OutcomeRadar,
+} from "../app/summoning-circle/components/OutcomeRadar";
 import { calculatorConfig } from "../lib/calculators/calculatorConfig";
 import {
   computeLevel3LegacyControlDelivery,
   normalizeLevel3LegacyControlStrength,
+  type MonsterOutcomeProfile,
+  type RadarAxes,
 } from "../lib/calculators/monsterOutcomeCalculator";
 
 const DICE_COUNTS = [1, 2, 3, 4, 5, 6, 8, 10, 15, 20] as const;
+const FULL_DICE_COUNTS = Array.from({ length: 20 }, (_, index) => index + 1);
 const AUTHORITATIVE_COOLDOWNS: Record<(typeof DICE_COUNTS)[number], number> = {
   1: 2,
   2: 2,
@@ -72,7 +82,7 @@ function eliteScore(perUseControlProxy: number): number {
     perUseControlProxy,
     baselinePerUseControlProxy: eliteBaseline.expectedPerUseControlProxy,
     midpointScore: tuning.midpointScore,
-    logRatioCoefficient: tuning.logRatioScale,
+    ratioExponent: tuning.ratioExponent,
   });
 }
 
@@ -145,6 +155,31 @@ for (const rows of [authoritative, fixedCooldown, secondLegacyFamily]) {
 }
 
 const authoritativeScores = authoritative.map((row) => eliteScore(row.perUseControlProxy));
+const completeSweep = FULL_DICE_COUNTS.map((diceCount) => {
+  const delivery = computeLevel3LegacyControlDelivery({
+    sourceDie: "D10",
+    diceCount,
+    resistibility: "RESISTED",
+    durationTurns: 2,
+    targetCount: 1,
+    effectSeverity: 2,
+    supportedStackImpact: 1,
+    recurrenceContribution: 0,
+    cooldownTurns: 2,
+  });
+  assert.ok(delivery);
+  return {
+    diceCount,
+    perUseControlProxy: delivery.perUseControlProxy,
+    score: eliteScore(delivery.perUseControlProxy),
+  };
+});
+for (let index = 1; index < completeSweep.length; index += 1) {
+  assert.ok(
+    completeSweep[index].score >= completeSweep[index - 1].score,
+    `Primary Control Strength must not decrease at Dice ${completeSweep[index].diceCount}.`,
+  );
+}
 for (let index = 1; index < authoritativeScores.length; index += 1) {
   assert.ok(
     authoritativeScores[index] >= authoritativeScores[index - 1],
@@ -178,17 +213,44 @@ assert.ok(
   "Dice 5 to 6 must expose the per-use gain and primary-score gain despite the cooldown-cadence drop.",
 );
 
-assert.ok(authoritativeScores[5] > 6, "Dice 6 must be clearly strong for Level 3.");
 assert.ok(
-  authoritativeScores.at(-1)! >= authoritativeScores[5] + 1.5,
-  "Dice 20 must score materially above Dice 6.",
+  authoritativeScores[5] >= 7 && authoritativeScores[5] <= 9,
+  "Dice 6 must be between 7 and 9 for Level 3.",
 );
-assert.ok(authoritativeScores.at(-1)! <= 10, "Dice 20 must remain bounded at 10.");
+assert.ok(
+  authoritativeScores[7] >= 9,
+  "Dice 10 must be extreme for Level 3 and score at least 9.",
+);
+assert.ok(authoritativeScores.at(-1)! > 10, "Dice 20 must exceed 10 internally.");
+assert.ok(
+  authoritativeScores.at(-1)! >= authoritativeScores[7] + 2,
+  "Dice 20 must score materially above Dice 10.",
+);
+assert.ok(Number.isFinite(authoritativeScores.at(-1)!));
+assert.ok(
+  authoritativeScores.at(-1)! / authoritativeScores[7] <
+    authoritative.at(-1)!.perUseControlProxy / authoritative[7].perUseControlProxy,
+  "The cube-root score must compress extreme penetration rather than scale linearly.",
+);
 assert.equal(
   new Set(authoritative.slice(5).map((row) => row.perUseControlProxy)).size,
   authoritative.length - 5,
   "Dice 6-20 per-use penetration values must remain distinct.",
 );
+
+for (const baseline of calculatorConfig.controlPressureAxisTuning.baselines) {
+  assert.ok(
+    Math.abs(
+      normalizeLevel3LegacyControlStrength({
+        perUseControlProxy: baseline.expectedPerUseControlProxy,
+        baselinePerUseControlProxy: baseline.expectedPerUseControlProxy,
+        midpointScore: calculatorConfig.controlPressureAxisTuning.midpointScore,
+        ratioExponent: calculatorConfig.controlPressureAxisTuning.ratioExponent,
+      }) - 5,
+    ) < 1e-12,
+    `${baseline.id} must remain exactly at score 5.`,
+  );
+}
 assert.equal(
   new Set(authoritativeScores.slice(5)).size,
   authoritativeScores.length - 5,
@@ -264,6 +326,78 @@ assert.equal(
   "Cooldown must not be applied to the per-use Control Strength kernel.",
 );
 
+const emptyRadarAxes: RadarAxes = {
+  physicalThreat: 0,
+  mentalThreat: 0,
+  physicalSurvivability: 0,
+  mentalSurvivability: 0,
+  manipulation: 0,
+  synergy: 0,
+  mobility: 0,
+  presence: 0,
+};
+const overcapScore = authoritativeScores.at(-1)!;
+const overcapRadarMarkup = renderToStaticMarkup(
+  createElement(OutcomeRadar, {
+    axes: { ...emptyRadarAxes, manipulation: overcapScore },
+  }),
+);
+assert.equal(formatRadarAxisDisplayValue(overcapScore), "10+");
+assert.ok(
+  overcapRadarMarkup.includes("10+"),
+  "The browser-facing radar summary must display 10+ for an uncapped score above 10.",
+);
+
+function renderControlPanel(score: number, row: (typeof authoritative)[number]): string {
+  const eliteBaseline = calculatorConfig.controlPressureAxisTuning.baselines.find(
+    (baseline) => baseline.level === 3 && baseline.tier === "ELITE" && !baseline.legendary,
+  );
+  assert.ok(eliteBaseline);
+  const profile = {
+    radarAxes: { ...emptyRadarAxes, manipulation: score },
+    netSuccessMultiplier: 1,
+    debug: {
+      semanticSynergyAxisModel: {},
+      controlPressureAxisBaselineModel: {
+        ratioToBaseline: row.perUseControlProxy / eliteBaseline.expectedPerUseControlProxy,
+        legacyControlDelivery: {
+          level: 3,
+          levelRelativeControlStrength: score,
+          radarDisplayScore: Math.min(10, score),
+          cadenceTradeoffApplied: true,
+          packages: [
+            {
+              ...row,
+              sourcePowerId: "terrifying-gaze-fixture",
+              sourcePowerName: "Terrifying Gaze",
+              packetIndex: 0,
+              basePowerValue: row.bpv,
+            },
+          ],
+        },
+      },
+    },
+  } as unknown as MonsterOutcomeProfile;
+  return renderToStaticMarkup(
+    createElement(MonsterCalculatorPanel, {
+      profile,
+      archetype: "BALANCED",
+      onArchetypeChangeAction: () => undefined,
+    }),
+  );
+}
+
+const overcapPanelMarkup = renderControlPanel(overcapScore, authoritative.at(-1)!);
+assert.ok(overcapPanelMarkup.includes("Exceeds the Level 3 control envelope."));
+assert.ok(overcapPanelMarkup.includes("10+ (plotted at 10)"));
+assert.ok(overcapPanelMarkup.includes(overcapScore.toFixed(2)));
+assert.ok(overcapPanelMarkup.includes("Level reference ratio"));
+const referencePanelMarkup = renderControlPanel(authoritativeScores[2], authoritative[2]);
+assert.ok(
+  !referencePanelMarkup.includes("Exceeds the Level 3 control envelope."),
+  "The Level 3 reference package must not render an over-level warning.",
+);
+
 const report = {
   authoritative: authoritative.map((row) => ({
     diceCount: row.diceCount,
@@ -295,6 +429,7 @@ const report = {
     perUseControlProxy: row.perUseControlProxy,
     afterScore: eliteScore(row.perUseControlProxy),
   })),
+  completeSweep,
   performance: {
     samples: performanceSamples,
     worstAverageCalculationMs: Math.max(
@@ -315,8 +450,9 @@ assert.ok(
   calculatorPanelSource.includes("Control Strength and Encounter Availability") &&
     calculatorPanelSource.includes("Expected excess net successes") &&
     calculatorPanelSource.includes("Authoritative cooldown") &&
-    calculatorPanelSource.includes("Control penetration is far above the Level 3 reference") &&
-    calculatorPanelSource.includes("package. The Power is highly resistant to cancellation") &&
+    calculatorPanelSource.includes("Exceeds the Level") &&
+    calculatorPanelSource.includes("highly resistant to cancellation by stronger defence") &&
+    calculatorPanelSource.includes("Level reference ratio") &&
     calculatorPanelSource.includes("authoritative cooldown cadence reduces availability"),
   "Ordinary calculator UI must expose penetration robustness and per-use versus encounter Control.",
 );

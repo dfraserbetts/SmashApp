@@ -67,6 +67,12 @@ function isAxisAtCap(value: number | null | undefined) {
   return Number.isFinite(value) && Number(value) > AXIS_CAP_WARNING_THRESHOLD;
 }
 
+export function formatRadarAxisDisplayValue(value: number | null | undefined): string {
+  if (!Number.isFinite(value)) return "0";
+  if (Number(value) > 10) return "10+";
+  return Math.max(0, Number(value)).toFixed(1).replace(/\.0$/, "");
+}
+
 function toPoint(cx: number, cy: number, r: number, angle: number) {
   return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
 }
@@ -221,7 +227,8 @@ export function OutcomeRadar({ axes, backgroundAxes, size = 312 }: Props) {
         {angles.map((angle, i) => {
           const labelPos = toPoint(cx, cy, labelRadius, angle);
           const axis = AXES[i];
-          const labelLines = axis.labelLines;
+          const scoreLabel = formatRadarAxisDisplayValue(axes[axis.key]);
+          const labelLines = [...axis.labelLines, scoreLabel];
           const firstLineY = labelPos.y - ((labelLines.length - 1) * 5) / 2;
           const isCapped = isAxisAtCap(axes[axis.key]);
           return (
@@ -234,7 +241,7 @@ export function OutcomeRadar({ axes, backgroundAxes, size = 312 }: Props) {
               className={isCapped ? "fill-red-400 font-semibold" : "fill-zinc-400"}
               aria-label={
                 axis.description
-                  ? `${labelLines.join(" ")}: ${axis.description}`
+                  ? `${axis.labelLines.join(" ")}: ${scoreLabel}. ${axis.description}`
                   : labelLines.join(" ")
               }
             >

@@ -778,6 +778,7 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     changedPathPatterns: [
       "scripts/legacyControlReliabilityLevel3.smoke.ts",
       "app/summoning-circle/components/MonsterCalculatorPanel.tsx",
+      "app/summoning-circle/components/OutcomeRadar.tsx",
       ...outcomeDependencyPatterns,
       ...powerDependencyPatterns,
     ],

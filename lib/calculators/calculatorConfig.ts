@@ -231,7 +231,7 @@ export type CalculatorConfig = {
   controlPressureAxisTuning: {
     calibratedLevel: number;
     midpointScore: number;
-    logRatioScale: number;
+    ratioExponent: number;
     nonCalibratedFallbackMode: "LEGACY_COST_COUPLED_MANIPULATION_CURVE";
     reliabilityValues: Record<ControlPressureResistibility, number>;
     componentWeights: {
@@ -557,10 +557,10 @@ export const calculatorConfig: CalculatorConfig = {
   controlPressureAxisTuning: {
     calibratedLevel: 3,
     midpointScore: 5,
-    // Legacy Control uses the same coefficient-4 logarithmic normalization
-    // family as supported semantic Debuff Control. A base-10 ratio keeps the
-    // exact penetration sweep useful through the bounded 0-10 radar range.
-    logRatioScale: 4,
+    // Legacy Control is Level-relative: the tier reference scores 5, while a
+    // cube-root ratio compresses extreme penetration without imposing a hard
+    // or asymptotic internal cap. The radar renderer remains visually capped.
+    ratioExponent: 1 / 3,
     nonCalibratedFallbackMode: "LEGACY_COST_COUPLED_MANIPULATION_CURVE",
     reliabilityValues: {
       RESISTED: 0.85,

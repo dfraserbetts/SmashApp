@@ -467,6 +467,9 @@ function getControlPressureAxisDebug(result: ReturnType<typeof computeMonsterOut
         };
         unsupportedAuthoringWarnings?: string[];
         legacyControlDelivery?: {
+          level?: number;
+          levelRelativeControlStrength?: number;
+          radarDisplayScore?: number;
           perUseControlProxy?: number;
           encounterControlProxy?: number;
           cadenceTradeoffApplied?: boolean;
@@ -493,6 +496,7 @@ function getControlPressureAxisDebug(result: ReturnType<typeof computeMonsterOut
         rawBaselineControlPressureProxy?: number | null;
         ratioToBaseline?: number | null;
         uncappedScore?: number | null;
+        radarDisplayScore?: number | null;
         finalScore?: number | null;
         newFormatDebuffControl?: {
           detectedPacketCount?: number;
@@ -2350,6 +2354,30 @@ assert.ok(controlPressureMovementDenial.radarAxes.manipulation > 0);
 assert.equal(movementDenialPackage?.effectFamily, "MOVEMENT_DENIAL");
 assert.equal(movementDenialPackage?.runtimeSemanticMode, "movementDenied");
 assert.notEqual(movementDenialPackage?.effectFamily, "MAIN_ACTION_DENIAL");
+
+const controlPressureOverLevel = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Over-level Movement Denial",
+      intention: "CONTROL",
+      controlMode: "Force no move",
+      diceCount: 20,
+      duration: "TURNS",
+      durationTurns: 2,
+      cooldown: 5,
+      resistAttribute: "FORTITUDE",
+    }),
+  ],
+});
+const overLevelDebug = getControlPressureAxisDebug(controlPressureOverLevel);
+assert.ok(controlPressureOverLevel.radarAxes.manipulation > 10);
+assert.equal(overLevelDebug?.uncappedScore, controlPressureOverLevel.radarAxes.manipulation);
+assert.equal(overLevelDebug?.finalScore, controlPressureOverLevel.radarAxes.manipulation);
+assert.equal(overLevelDebug?.radarDisplayScore, 10);
+assert.equal(overLevelDebug?.legacyControlDelivery?.levelRelativeControlStrength,
+  controlPressureOverLevel.radarAxes.manipulation);
+assert.equal(overLevelDebug?.legacyControlDelivery?.radarDisplayScore, 10);
+assert.equal(overLevelDebug?.legacyControlDelivery?.level, 3);
 assert.ok(
   getControlPressureAxisDebug(controlPressureMovementDenial)?.unsupportedAuthoringWarnings?.some((warning) =>
       warning.includes("Potency does not add magnitude scaling") &&
@@ -3030,28 +3058,28 @@ for (const axis of [
 
 const capturedLevelThreeComparatorBaseline = {
   MINION: {
-    forcedMovement: 6.540080188900078,
-    movementDenial: 7.5368290272186735,
-    mainActionDenial: 8.021994426179019,
-    legacyDebuff: 9.682497539351901,
+    forcedMovement: 6.786044041487267,
+    movementDenial: 8.549879733383484,
+    mainActionDenial: 9.78716910292216,
+    legacyDebuff: 25.761303569892956,
   },
   SOLDIER: {
-    forcedMovement: 0.56891042153747,
-    movementDenial: 0.8896032776655673,
-    mainActionDenial: 1.145940948750388,
-    legacyDebuff: 4.932108304253696,
+    forcedMovement: 1.3000523894074403,
+    movementDenial: 1.6379633713805606,
+    mainActionDenial: 1.8750000000000002,
+    legacyDebuff: 4.935282479090669,
   },
   ELITE: {
-    forcedMovement: 0.39562970275175247,
-    movementDenial: 0.6251191672749794,
-    mainActionDenial: 0.8120390930212578,
-    legacyDebuff: 3.9924564172386843,
+    forcedMovement: 1.0826595573112758,
+    movementDenial: 1.3640655661263414,
+    mainActionDenial: 1.5614652813213967,
+    legacyDebuff: 4.110011863794064,
   },
   BOSS: {
-    forcedMovement: 0.18837494237099456,
-    movementDenial: 0.3014168641716165,
-    mainActionDenial: 0.39562970275175247,
-    legacyDebuff: 2.3649307542988405,
+    forcedMovement: 0.7506742103452403,
+    movementDenial: 0.9457902392271798,
+    mainActionDenial: 1.0826595573112758,
+    legacyDebuff: 2.8497230634764796,
   },
 } as const;
 
