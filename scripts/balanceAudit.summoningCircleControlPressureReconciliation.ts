@@ -322,6 +322,7 @@ function summarizeMonster(
     { level: monster.level, tier: monster.tier },
   );
   const traitAxisBonuses = computeTraitAxisBonuses(traitDefinitions(monster), monster.level);
+  const calculationStartedAt = performance.now();
   const outcome = computeMonsterOutcomes(
     calculatorInput as unknown as Parameters<typeof computeMonsterOutcomes>[0],
     tuning.calculatorConfig,
@@ -354,6 +355,7 @@ function summarizeMonster(
       },
     },
   );
+  const calculatorRuntimeMs = performance.now() - calculationStartedAt;
   const debug = asRecord(outcome.debug);
   const finalPre = asRecord(debug.finalPreNormalizationAxes);
   const nonPower = asRecord(asRecord(debug.nonPowerContribution).axisVector);
@@ -482,6 +484,7 @@ function summarizeMonster(
     radarAxes: Object.fromEntries(
       Object.entries(outcome.radarAxes).map(([axis, value]) => [axis, round(value, 6)]),
     ),
+    calculatorRuntimeMs,
     cooldownAuthority: {
       mode: "ACTIVE_CURRENT_BALANCE",
       tuningSetId: tuning.powerSnapshot.setId,
@@ -1113,6 +1116,12 @@ function printHuman(payload: Awaited<ReturnType<typeof buildPayload>>) {
   console.log("databaseAccess=read-only; mutation=none");
   console.log(`samples=${payload.samples.length}; missing=${payload.missingSamples.join(",") || "none"}`);
   console.log(`caveat=${payload.caveat}`);
+  const calculatorRuntimes = payload.samples
+    .map((sample) => sample.calculatorRuntimeMs)
+    .sort((left, right) => left - right);
+  console.log(
+    `calculatorRuntimeMs typical=${round(calculatorRuntimes[Math.floor(calculatorRuntimes.length / 2)] ?? 0, 4)} worst=${round(calculatorRuntimes.at(-1) ?? 0, 4)}`,
+  );
   console.log("");
   console.log(
     "Name | tier/L | final | semantic raw/baseline | ratio | baseline package | mode | uncapped | cap",

@@ -1446,7 +1446,7 @@ async function buildPayload() {
         gazzkill.radarAxes.mentalThreat === 0 &&
         gazzkill.radarAxes.physicalSurvivability === 9.725262 &&
         gazzkill.radarAxes.mentalSurvivability === 5.830205 &&
-        gazzkill.radarAxes.manipulation === 3.033907 &&
+        gazzkill.radarAxes.manipulation === 1.353943 &&
         gazzkill.radarAxes.mobility === 2.039084 &&
         gazzkill.radarAxes.presence === 4.368786 &&
         gazzkill.powerWarnings.length === 0,

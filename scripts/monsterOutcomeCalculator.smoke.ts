@@ -473,7 +473,15 @@ function getControlPressureAxisDebug(result: ReturnType<typeof computeMonsterOut
           packages?: Array<{
             diceCount?: number;
             applicationProbability?: number;
+            expectedPositiveNetSuccesses?: number;
             expectedNetSuccesses?: number;
+            expectedExcessNetSuccesses?: number;
+            robustnessProbabilities?: {
+              atLeastOne?: number;
+              atLeastTwo?: number;
+              atLeastThree?: number;
+              atLeastFive?: number;
+            };
             expectedActiveTargetTurns?: number;
             perUseControlProxy?: number;
             cooldownTurns?: number | null;
@@ -2344,8 +2352,8 @@ assert.equal(movementDenialPackage?.runtimeSemanticMode, "movementDenied");
 assert.notEqual(movementDenialPackage?.effectFamily, "MAIN_ACTION_DENIAL");
 assert.ok(
   getControlPressureAxisDebug(controlPressureMovementDenial)?.unsupportedAuthoringWarnings?.some((warning) =>
-    warning.includes("Potency does not add magnitude scaling") &&
-    warning.includes("Dice Count changes exact application reliability"),
+      warning.includes("Potency does not add magnitude scaling") &&
+      warning.includes("Dice Count changes exact opposed-success penetration"),
   ),
 );
 assert.ok(
@@ -2427,9 +2435,18 @@ const controlPressureMovementLongCooldown = computePressureFixture({
     cooldown: 5,
   })],
 });
+assertApprox(
+  controlPressureMovementShortCooldown.radarAxes.manipulation,
+  controlPressureMovementLongCooldown.radarAxes.manipulation,
+  0.000001,
+  "Movement denial primary score excludes cooldown",
+);
 assert.ok(
-  controlPressureMovementShortCooldown.radarAxes.manipulation >
-    controlPressureMovementLongCooldown.radarAxes.manipulation,
+  Number(getControlPressureAxisDebug(controlPressureMovementShortCooldown)
+    ?.legacyControlDelivery?.encounterControlProxy) >
+    Number(getControlPressureAxisDebug(controlPressureMovementLongCooldown)
+      ?.legacyControlDelivery?.encounterControlProxy),
+  "Movement denial encounter diagnostic retains cooldown cadence",
 );
 
 const controlPressureMovementResisted = computePressureFixture({
@@ -2441,6 +2458,24 @@ const controlPressureMovementUnresisted = computePressureFixture({
 assert.ok(
   controlPressureMovementUnresisted.radarAxes.manipulation >
     controlPressureMovementResisted.radarAxes.manipulation,
+);
+
+const controlPressureMissingResistanceAuthority = computePressureFixture({
+  powers: [{
+    ...movementDenialPower,
+    primaryDefenceGate: {
+      ...movementDenialPower.primaryDefenceGate!,
+      gateResult: "DODGE",
+    },
+  }],
+});
+assert.equal(controlPressureMissingResistanceAuthority.radarAxes.manipulation, 0);
+assert.ok(
+  getControlPressureAxisDebug(controlPressureMissingResistanceAuthority)
+    ?.unsupportedAuthoringWarnings?.some((warning) =>
+      warning.includes("no authoritative resistance mode"),
+    ),
+  "Missing legacy Control resistance authority must fail closed with a diagnostic.",
 );
 
 const movementDenialMagnitudeOne = computePressureFixture({
@@ -2606,9 +2641,18 @@ const controlPressureLongCooldown = computePressureFixture({
     }),
   ],
 });
+assertApprox(
+  controlPressureShortCooldown.radarAxes.manipulation,
+  controlPressureLongCooldown.radarAxes.manipulation,
+  0.000001,
+  "Main-action denial primary score excludes cooldown",
+);
 assert.ok(
-  controlPressureShortCooldown.radarAxes.manipulation >
-    controlPressureLongCooldown.radarAxes.manipulation,
+  Number(getControlPressureAxisDebug(controlPressureShortCooldown)
+    ?.legacyControlDelivery?.encounterControlProxy) >
+    Number(getControlPressureAxisDebug(controlPressureLongCooldown)
+      ?.legacyControlDelivery?.encounterControlProxy),
+  "Main-action denial encounter diagnostic retains cooldown cadence",
 );
 
 const duplicateControlDenialA = createControlPressurePower({
@@ -2849,6 +2893,7 @@ for (const result of [controlPressureSpecificAction, controlPressureResponseDeni
 const controlPressureAnchors = [
   computePressureFixture({
     tier: "MINION",
+    attackDie: "D4",
     powers: [
       createControlPressurePower({
         name: "Minion Standard Forced Movement",
@@ -2860,6 +2905,7 @@ const controlPressureAnchors = [
   }),
   computePressureFixture({
     tier: "SOLDIER",
+    attackDie: "D8",
     powers: [
       createControlPressurePower({
         name: "Soldier Standard Denial",
@@ -2870,77 +2916,66 @@ const controlPressureAnchors = [
   }),
   computePressureFixture({
     tier: "ELITE",
+    attackDie: "D10",
     powers: [
       createControlPressurePower({
-        name: "Elite Standard Denial",
+        name: "Elite Standard Movement Denial",
         intention: "CONTROL",
+        controlMode: "Force no move",
+        diceCount: 3,
+        duration: "TURNS",
+        durationTurns: 2,
         cooldown: 2,
-      }),
-      createControlPressurePower({
-        name: "Elite Standard Forced Movement",
-        intention: "MOVEMENT",
-        cooldown: 2,
+        resistAttribute: "BRAVERY",
       }),
     ],
   }),
   computePressureFixture({
     tier: "ELITE",
     legendary: true,
+    attackDie: "D10",
     powers: [
       createControlPressurePower({
         name: "Legendary Elite Standard Denial",
         intention: "CONTROL",
+        diceCount: 3,
+        duration: "TURNS",
+        durationTurns: 2,
         cooldown: 2,
-      }),
-      createControlPressurePower({
-        name: "Legendary Elite Standard Debuff",
-        intention: "DEBUFF",
-        cooldown: 3,
+        resistAttribute: "BRAVERY",
       }),
     ],
   }),
   computePressureFixture({
     tier: "BOSS",
+    attackDie: "D10",
     powers: [
       createControlPressurePower({
         name: "Boss Standard Two Target Denial",
         intention: "CONTROL",
         targets: 2,
-        cooldown: 1,
-      }),
-      createControlPressurePower({
-        name: "Boss Standard Debuff",
-        intention: "DEBUFF",
+        diceCount: 3,
+        duration: "TURNS",
+        durationTurns: 2,
         cooldown: 2,
+        resistAttribute: "BRAVERY",
       }),
     ],
   }),
   computePressureFixture({
     tier: "BOSS",
     legendary: true,
+    attackDie: "D10",
     powers: [
       createControlPressurePower({
-        name: "Legendary Boss Recurring Denial",
+        name: "Legendary Boss Standard Denial",
         intention: "CONTROL",
         targets: 2,
-        cooldown: 1,
+        diceCount: 6,
+        cooldown: 4,
         duration: "TURNS",
-        durationTurns: 2,
-        timing: "START_OF_TURN",
-      }),
-      createControlPressurePower({
-        name: "Legendary Boss Attack Debuff",
-        intention: "DEBUFF",
-        targets: 2,
-        cooldown: 1,
-        statTarget: "Attack",
-      }),
-      createControlPressurePower({
-        name: "Legendary Boss Defence Debuff",
-        intention: "DEBUFF",
-        targets: 2,
-        cooldown: 2,
-        statTarget: "Guard",
+        durationTurns: 3,
+        resistAttribute: "BRAVERY",
       }),
     ],
   }),
@@ -2995,28 +3030,28 @@ for (const axis of [
 
 const capturedLevelThreeComparatorBaseline = {
   MINION: {
-    forcedMovement: 4.842179356499724,
-    movementDenial: 5.442179356499723,
-    mainActionDenial: 5.793156856932417,
-    legacyDebuff: 8.055830419871377,
+    forcedMovement: 6.540080188900078,
+    movementDenial: 7.5368290272186735,
+    mainActionDenial: 8.021994426179019,
+    legacyDebuff: 9.682497539351901,
   },
   SOLDIER: {
-    forcedMovement: 1.5019550008653875,
-    movementDenial: 2.1019550008653876,
-    mainActionDenial: 2.452932501298081,
-    legacyDebuff: 4.715606064237042,
+    forcedMovement: 0.56891042153747,
+    movementDenial: 0.8896032776655673,
+    mainActionDenial: 1.145940948750388,
+    legacyDebuff: 4.932108304253696,
   },
   ELITE: {
-    forcedMovement: 1.6039100017307746,
-    movementDenial: 2.2039100017307747,
-    mainActionDenial: 2.554887502163469,
-    legacyDebuff: 4.81756106510243,
+    forcedMovement: 0.39562970275175247,
+    movementDenial: 0.6251191672749794,
+    mainActionDenial: 0.8120390930212578,
+    legacyDebuff: 3.9924564172386843,
   },
   BOSS: {
-    forcedMovement: 0.5319521845962907,
-    movementDenial: 1.1319521845962908,
-    mainActionDenial: 1.4829296850289846,
-    legacyDebuff: 3.7456032479679457,
+    forcedMovement: 0.18837494237099456,
+    movementDenial: 0.3014168641716165,
+    mainActionDenial: 0.39562970275175247,
+    legacyDebuff: 2.3649307542988405,
   },
 } as const;
 
@@ -3493,10 +3528,11 @@ const eliteM3ByTier = {
     powers: [createNewFormatDebuffPower({ name: "Boss M3 Comparator" })],
   }),
 };
-for (const tier of Object.keys(capturedLevelThreeComparatorBaseline) as Array<keyof typeof capturedLevelThreeComparatorBaseline>) {
+for (const [index, tier] of (Object.keys(capturedLevelThreeComparatorBaseline) as Array<keyof typeof capturedLevelThreeComparatorBaseline>).entries()) {
   assert.ok(
-    eliteM1ByTier[tier].radarAxes.manipulation < capturedLevelThreeComparatorBaseline[tier].movementDenial,
-    `${tier} M1 remains below same-tier movement denial`,
+    eliteM1ByTier[tier].radarAxes.manipulation <
+      controlPressureAnchors[index].radarAxes.manipulation,
+    `${tier} M1 remains below the selected same-tier legacy Control reference`,
   );
   assert.equal(
     getControlPressureAxisDebug(eliteM3ByTier[tier])?.branch,

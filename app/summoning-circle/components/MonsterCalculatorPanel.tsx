@@ -244,10 +244,10 @@ export function MonsterCalculatorPanel({
                   repeatability, linked actions, and supported action economy.
                 </p>
                 <p className="text-[11px] text-zinc-500">
-                  Control Pressure reflects supported control and debuff effects,
-                  including severity, targets, duration, recurrence, availability,
-                  and distinct control packages. It measures table-facing
-                  restriction, not power cost or damage.
+                  Control Pressure reflects Level-relative per-use control strength,
+                  including severity, targets, duration, and opposed-success
+                  penetration. Authoritative cooldown and encounter cadence are
+                  reported separately.
                 </p>
                 <p className="text-[11px] text-zinc-500">
                   A Control Pressure score of 0 means the creature has no supported
@@ -278,29 +278,54 @@ export function MonsterCalculatorPanel({
 
               {legacyControlPackages.length > 0 && (
                 <div className="rounded border border-sky-800/70 bg-sky-950/25 p-2 text-xs text-sky-100">
-                  <p className="font-medium">Control delivery: per use versus encounter</p>
+                  <p className="font-medium">Control Strength and Encounter Availability</p>
+                  <p className="mt-1 text-sky-200/80">
+                    Level-relative per-use Control Strength {formatDecimal(
+                      Number(legacyControlDelivery.levelRelativeControlStrength),
+                    )}
+                  </p>
                   <div className="mt-2 space-y-2">
-                    {legacyControlPackages.map((controlPackage, index) => (
-                      <div
-                        key={`${String(controlPackage.sourcePowerId)}:${String(controlPackage.packetIndex)}:${index}`}
-                        className="rounded border border-sky-900/70 bg-zinc-950/30 p-2"
-                      >
-                        <p className="text-sky-100">
-                          {String(controlPackage.sourcePowerName)}
-                        </p>
-                        <p className="mt-1 text-sky-200/80">
-                          Application {formatDecimal(Number(controlPackage.applicationProbability) * 100)}%
-                          {" · "}Expected net successes {formatDecimal(Number(controlPackage.expectedNetSuccesses))}
-                          {" · "}Active target-turns {formatDecimal(Number(controlPackage.expectedActiveTargetTurns))}
-                        </p>
-                        <p className="mt-1 text-sky-200/80">
-                          Per use {formatDecimal(Number(controlPackage.perUseControlProxy))}
-                          {" · "}Cooldown {String(controlPackage.cooldownTurns)}
-                          {" · "}Availability {formatDecimal(Number(controlPackage.availability))}
-                          {" · "}Encounter {formatDecimal(Number(controlPackage.encounterControlProxy))}
-                        </p>
-                      </div>
-                    ))}
+                    {legacyControlPackages.map((controlPackage, index) => {
+                      const robustness = asRecord(
+                        controlPackage.robustnessProbabilities,
+                      );
+                      return (
+                        <div
+                          key={`${String(controlPackage.sourcePowerId)}:${String(controlPackage.packetIndex)}:${index}`}
+                          className="rounded border border-sky-900/70 bg-zinc-950/30 p-2"
+                        >
+                          <p className="text-sky-100">
+                            {String(controlPackage.sourcePowerName)}
+                          </p>
+                          <p className="mt-1 text-sky-200/80">
+                            Application {formatDecimal(Number(controlPackage.applicationProbability) * 100)}%
+                            {" · "}Expected positive net successes {formatDecimal(Number(controlPackage.expectedPositiveNetSuccesses))}
+                            {" · "}Expected excess net successes {formatDecimal(Number(controlPackage.expectedExcessNetSuccesses))}
+                            {" · "}Active target-turns {formatDecimal(Number(controlPackage.expectedActiveTargetTurns))}
+                          </p>
+                          <p className="mt-1 text-sky-200/80">
+                            Retains ≥1 net {formatDecimal(Number(robustness.atLeastOne) * 100)}%
+                            {" · "}≥2 {formatDecimal(Number(robustness.atLeastTwo) * 100)}%
+                            {" · "}≥3 {formatDecimal(Number(robustness.atLeastThree) * 100)}%
+                            {" · "}≥5 {formatDecimal(Number(robustness.atLeastFive) * 100)}%
+                          </p>
+                          <p className="mt-1 text-sky-200/80">
+                            Per-use penetration {formatDecimal(Number(controlPackage.perUseControlProxy))}
+                            {" · "}BPV {formatDecimal(Number(controlPackage.basePowerValue))}
+                            {" · "}Authoritative cooldown {String(controlPackage.cooldownTurns)}
+                            {" · "}Encounter Availability {formatDecimal(Number(controlPackage.availability))}
+                            {" · "}Encounter Control {formatDecimal(Number(controlPackage.encounterControlProxy))}
+                          </p>
+                          {Number(controlPackage.expectedPositiveNetSuccesses) >= 5 && (
+                            <p className="mt-1 text-amber-200">
+                              Control penetration is far above the Level 3 reference
+                              package. The Power is highly resistant to cancellation,
+                              but BPV and cooldown continue to rise.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   {legacyControlDelivery.cadenceTradeoffApplied === true && (
                     <p className="mt-2 text-amber-200">
