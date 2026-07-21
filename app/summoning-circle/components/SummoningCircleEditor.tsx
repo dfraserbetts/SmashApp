@@ -117,6 +117,7 @@ import {
 } from "@/lib/limitBreakThreshold";
 import {
   computeTraitAxisBonuses,
+  computeTraitLegacySynergySources,
   computeMonsterOutcomes,
   getEquipmentModifierBudgetShare,
   getEquipmentModifierPressureMultiplier,
@@ -5339,6 +5340,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
           .filter((trait): trait is MonsterTraitDefinitionSummary => Boolean(trait))
           .map(
             (trait): TraitAxisWeightDefinition => ({
+              name: trait.name,
               band: trait.band,
               physicalThreatWeight: trait.physicalThreatWeight,
               mentalThreatWeight: trait.mentalThreatWeight,
@@ -5351,6 +5353,21 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
               presenceWeight: trait.presenceWeight,
             }),
           ),
+        editor?.level ?? 1,
+      ),
+    [editor?.level, editor?.traits, traitById],
+  );
+  const selectedTraitLegacySynergySources = useMemo(
+    () =>
+      computeTraitLegacySynergySources(
+        (editor?.traits ?? [])
+          .map((trait) => traitById[trait.traitDefinitionId])
+          .filter((trait): trait is MonsterTraitDefinitionSummary => Boolean(trait))
+          .map((trait) => ({
+            name: trait.name,
+            band: trait.band,
+            synergyWeight: trait.synergyWeight,
+          })),
         editor?.level ?? 1,
       ),
     [editor?.level, editor?.traits, traitById],
@@ -6387,6 +6404,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
         debug: resolvedPowerCosts,
       } : null,
       traitAxisBonuses: selectedTraitAxisBonuses,
+      legacyNonPowerSynergySources: selectedTraitLegacySynergySources,
     });
 
     return {
@@ -6412,6 +6430,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
     selectedEquipmentModifierAxisBonuses,
     selectedNaturalAttackGsAxisBonuses,
     selectedNaturalAttackRangeAxisBonuses,
+    selectedTraitLegacySynergySources,
     selectedTraitAxisBonuses,
     survivabilityLaneDebugBreakdown,
   ]);

@@ -117,6 +117,12 @@ function formatDecimal(value: number): string {
   return value.toFixed(2);
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
 const POWER_AXIS_ROWS: Array<{ key: keyof RadarAxes; label: string }> = [
   { key: "physicalSurvivability", label: "Physical Survivability" },
   { key: "physicalThreat", label: "Physical Threat" },
@@ -138,6 +144,14 @@ export function MonsterCalculatorPanel({
   const OutcomeCalculatorChevron = isOutcomeCalculatorOpen
     ? ChevronDown
     : ChevronRight;
+  const semanticSynergyModel = asRecord(profile?.debug?.semanticSynergyAxisModel);
+  const excludedLegacySynergySources = Array.isArray(
+    semanticSynergyModel.excludedLegacySynergySources,
+  )
+    ? semanticSynergyModel.excludedLegacySynergySources
+        .map(asRecord)
+        .filter((source) => Number(source.amount) > 0)
+    : [];
 
   return (
     <section className="sticky top-12 lg:top-0 z-20 max-h-[calc(100vh-3rem)] lg:max-h-screen overflow-y-auto rounded border border-zinc-800 bg-zinc-900/95 p-4 space-y-3 shadow">
@@ -238,6 +252,22 @@ export function MonsterCalculatorPanel({
                 axes={profile.radarAxes}
                 backgroundAxes={ARCHETYPE_TARGETS[archetype]}
               />
+
+              {excludedLegacySynergySources.length > 0 && (
+                <div
+                  role="status"
+                  className="rounded border border-amber-700/70 bg-amber-950/30 p-2 text-xs text-amber-100"
+                >
+                  <p className="font-medium">Synergy excludes unsupported legacy weights</p>
+                  <p className="mt-1 text-amber-200/90">
+                    Semantic Power Synergy was calculated. The following legacy
+                    sources lack a supported semantic runtime model and were not
+                    scored: {excludedLegacySynergySources.map((source) =>
+                      `${String(source.name)} (${formatDecimal(Number(source.amount))})`
+                    ).join(", ")}.
+                  </p>
+                </div>
+              )}
 
               <details className="rounded border border-zinc-800 bg-zinc-950/30 p-2 text-[10px] text-zinc-400">
                 <summary className="cursor-pointer select-none text-zinc-500">

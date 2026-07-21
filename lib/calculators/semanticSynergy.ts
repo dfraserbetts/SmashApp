@@ -16,6 +16,7 @@ import { estimatePowerPacketExpectedTargets } from "@/lib/powers/expectedTargetE
 export const SEMANTIC_SYNERGY_DIAGNOSTIC = {
   legacy: "LEGACY_SYNERGY_MODEL",
   mixed: "MIXED_SEMANTIC_LEGACY_SYNERGY_UNSUPPORTED",
+  unscoredNonPowerLegacy: "UNSCORED_NON_POWER_LEGACY_SYNERGY",
   unsupportedLevel: "UNSUPPORTED_SEMANTIC_SYNERGY_LEVEL",
   missingIdentity: "SEMANTIC_SYNERGY_MISSING_IDENTITY",
   missingCooldown: "SEMANTIC_SYNERGY_MISSING_COOLDOWN_AUTHORITY",
@@ -102,8 +103,15 @@ export type SemanticSynergyInput = {
   powers?: SemanticSynergyPowerEntry[] | null;
   legacyRawSynergy: number;
   legacyNonPowerSynergy: number;
+  legacyNonPowerSynergySources?: LegacyNonPowerSynergySource[];
   tuning?: SemanticSynergyTuning;
   passiveState?: SemanticSynergyPassiveState;
+};
+
+export type LegacyNonPowerSynergySource = {
+  sourceType: "TRAIT" | "EQUIPMENT" | "NATURAL_ATTACK" | "LIMIT_BREAK" | "OTHER";
+  name: string;
+  amount: number;
 };
 
 export type SemanticSynergyPassiveState = "PREPARED_ACTIVE" | "INACTIVE";
@@ -186,6 +194,7 @@ export type SemanticSynergyResult = {
   mode:
     | "NONE"
     | "LEVEL_3_SEMANTIC"
+    | "LEVEL_3_SEMANTIC_WITH_EXCLUSIONS"
     | "LEGACY_ONLY"
     | "MIXED_UNSUPPORTED"
     | "SEMANTIC_UNSUPPORTED";
@@ -197,6 +206,7 @@ export type SemanticSynergyResult = {
   horizonTurns: number;
   activeCapacity: number | null;
   diagnostics: Array<{ code: SemanticSynergyDiagnosticCode; message: string }>;
+  excludedLegacySynergySources: LegacyNonPowerSynergySource[];
   detectedSemanticPacketCount: number;
   semanticPowerIds: string[];
   duplicatePacketIdsRemoved: string[];
@@ -1022,10 +1032,35 @@ export function computeLevel3SemanticSynergy(input: SemanticSynergyInput): Seman
   const extraction = extractSemanticPowers(input);
   const tier = String(input.monster.tier ?? "ELITE").toUpperCase() as SemanticSynergyTier;
   const tierTuning = tuning.tiers[tier] ?? null;
+  const namedLegacySources = (input.legacyNonPowerSynergySources ?? [])
+    .map((source) => ({
+      sourceType: source.sourceType,
+      name: source.name.trim() || "Unnamed non-power source",
+      amount: Number(source.amount),
+    }))
+    .filter((source) => Number.isFinite(source.amount) && source.amount > EPSILON)
+    .sort((left, right) =>
+      left.sourceType.localeCompare(right.sourceType) || left.name.localeCompare(right.name),
+    );
+  const namedLegacyTotal = namedLegacySources.reduce((sum, source) => sum + source.amount, 0);
+  const unnamedLegacyRemainder = Math.max(0, input.legacyNonPowerSynergy - namedLegacyTotal);
+  const excludedLegacySynergySources = input.legacyNonPowerSynergy > EPSILON
+    ? [
+        ...namedLegacySources,
+        ...(unnamedLegacyRemainder > EPSILON
+          ? [{
+              sourceType: "OTHER" as const,
+              name: "Other non-power legacy Synergy",
+              amount: unnamedLegacyRemainder,
+            }]
+          : []),
+      ]
+    : [];
   const base = {
     legacyRawSynergy: input.legacyRawSynergy,
     horizonTurns: tuning.horizonTurns,
     diagnostics: extraction.diagnostics,
+    excludedLegacySynergySources: [],
     detectedSemanticPacketCount: extraction.detectedSemanticPacketCount,
     semanticPowerIds: extraction.semanticPowerIds,
     duplicatePacketIdsRemoved: extraction.duplicatePacketIdsRemoved,
@@ -1046,7 +1081,8 @@ export function computeLevel3SemanticSynergy(input: SemanticSynergyInput): Seman
       sameAttributeClamp: tuning.clampMaximum,
       linkedApplication: "INHERIT_TARGET_LOCAL_PRIMARY" as const,
       sameSourceReapplication: "MAX_AND_REFRESH" as const,
-      legacyCombination: "SEMANTIC_ONLY_OR_LEGACY_ONLY;_MIXED_FAILS_CLOSED" as const,
+      legacyCombination:
+        "SEMANTIC_POWER_AUTHORITY_EXCLUDES_NON_POWER_LEGACY;_MIXED_POWER_MODELS_FAIL_CLOSED" as const,
     },
     adapterWarnings: extraction.adapterWarnings,
   };
@@ -1079,7 +1115,7 @@ export function computeLevel3SemanticSynergy(input: SemanticSynergyInput): Seman
       optimizer: null,
     };
   }
-  if (extraction.legacyPowerSupport || input.legacyNonPowerSynergy > EPSILON) {
+  if (extraction.legacyPowerSupport) {
     return {
       ...base,
       mode: "MIXED_UNSUPPORTED",
@@ -1092,7 +1128,7 @@ export function computeLevel3SemanticSynergy(input: SemanticSynergyInput): Seman
         ...base.diagnostics,
         diagnostic(
           SEMANTIC_SYNERGY_DIAGNOSTIC.mixed,
-          "Semantic and legacy power/non-power support cannot be combined; Synergy failed closed.",
+          "Semantic and legacy power support cannot be combined; Synergy failed closed.",
         ),
       ],
       optimizer: null,
@@ -1131,9 +1167,18 @@ export function computeLevel3SemanticSynergy(input: SemanticSynergyInput): Seman
   }
   const optimized = optimizeSemanticSynergy(extraction, tuning, tier, passiveState);
   const hasPassive = extraction.powers.some((power) => power.passive);
+  const exclusionDiagnostics = excludedLegacySynergySources.map((source) =>
+    diagnostic(
+      SEMANTIC_SYNERGY_DIAGNOSTIC.unscoredNonPowerLegacy,
+      `${source.name} contributes ${source.amount.toFixed(3)} legacy Synergy but has no supported semantic runtime model; its Synergy weight was not scored.`,
+    ),
+  );
   return {
     ...base,
-    mode: "LEVEL_3_SEMANTIC",
+    mode: excludedLegacySynergySources.length > 0
+      ? "LEVEL_3_SEMANTIC_WITH_EXCLUSIONS"
+      : "LEVEL_3_SEMANTIC",
+    excludedLegacySynergySources,
     scoreOverride: normalizeLevel3SemanticSynergy(
       optimized.rawSupport,
       tierTuning.tierScale,
@@ -1146,12 +1191,13 @@ export function computeLevel3SemanticSynergy(input: SemanticSynergyInput): Seman
     diagnostics: hasPassive && passiveState === "PREPARED_ACTIVE"
       ? [
           ...base.diagnostics,
+          ...exclusionDiagnostics,
           diagnostic(
             SEMANTIC_SYNERGY_DIAGNOSTIC.preparedActiveReference,
             "Passive Synergy uses the canonical PREPARED_ACTIVE authored-creature reference; it does not assert current campaign state.",
           ),
         ]
-      : base.diagnostics,
+      : [...base.diagnostics, ...exclusionDiagnostics],
     optimizer: {
       exact: true,
       algorithm: "FINITE_HORIZON_MEMOIZED_STATE_ENUMERATION",

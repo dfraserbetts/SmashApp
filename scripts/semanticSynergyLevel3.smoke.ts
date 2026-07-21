@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 
 import { calculatorConfig } from "../lib/calculators/calculatorConfig";
@@ -306,6 +307,9 @@ function runFixture(params: {
   level?: number;
   die?: "D4" | "D6" | "D8" | "D10" | "D12";
   traitSynergy?: number;
+  traitName?: string;
+  traitPhysicalSurvivability?: number;
+  traitMentalSurvivability?: number;
 }): SemanticFixture {
   const tier = params.tier ?? "SOLDIER";
   const level = params.level ?? 3;
@@ -315,17 +319,24 @@ function runFixture(params: {
   const started = performance.now();
   const outcome = computeMonsterOutcomes(monster, calculatorConfig, {
     powerContribution,
-    traitAxisBonuses: params.traitSynergy
+    traitAxisBonuses: params.traitSynergy || params.traitPhysicalSurvivability || params.traitMentalSurvivability
       ? {
           physicalThreat: 0,
           mentalThreat: 0,
-          physicalSurvivability: 0,
-          mentalSurvivability: 0,
+          physicalSurvivability: params.traitPhysicalSurvivability ?? 0,
+          mentalSurvivability: params.traitMentalSurvivability ?? 0,
           manipulation: 0,
           synergy: params.traitSynergy,
           mobility: 0,
           presence: 0,
         }
+      : undefined,
+    legacyNonPowerSynergySources: params.traitSynergy
+      ? [{
+          sourceType: "TRAIT",
+          name: params.traitName ?? "Fixture trait",
+          amount: params.traitSynergy,
+        }]
       : undefined,
   });
   const model = semanticModel(outcome);
@@ -786,8 +797,37 @@ const mixedNonPower = runFixture({
   id: "mixed-non-power",
   powers: [singlePower({ identity: "Mixed Non-Power Semantic", diceCount: 3, potency: 3, modifier: 3, durationTurns: 2 })],
   traitSynergy: 1,
+  traitName: "Pack Tactics",
+  traitPhysicalSurvivability: 0.75,
+  traitMentalSurvivability: 0.75,
 });
-check("Invariant non-power legacy weight beside semantic fails closed", mixedNonPower.model.mode === "MIXED_UNSUPPORTED" && mixedNonPower.score === 0);
+check(
+  "Invariant non-power legacy weight beside semantic is excluded without suppressing semantic support",
+  mixedNonPower.model.mode === "LEVEL_3_SEMANTIC_WITH_EXCLUSIONS" &&
+    mixedNonPower.score > 0 &&
+    mixedNonPower.model.excludedLegacySynergySources.some(
+      (source) => source.name === "Pack Tactics" && source.amount === 1,
+    ) &&
+    mixedNonPower.model.diagnostics.some(
+      (entry) =>
+        entry.code === SEMANTIC_SYNERGY_DIAGNOSTIC.unscoredNonPowerLegacy &&
+        entry.message.includes("Pack Tactics"),
+    ),
+);
+check(
+  "Invariant excluded trait keeps its non-Synergy Survivability weights",
+  mixedNonPower.radarAxes.physicalSurvivability > routineM3.radarAxes.physicalSurvivability &&
+    mixedNonPower.radarAxes.mentalSurvivability > routineM3.radarAxes.mentalSurvivability,
+);
+const calculatorPanelSource = readFileSync(
+  "app/summoning-circle/components/MonsterCalculatorPanel.tsx",
+  "utf8",
+);
+check(
+  "Invariant excluded legacy Synergy has an ordinary visible calculator warning",
+  calculatorPanelSource.includes("Synergy excludes unsupported legacy weights") &&
+    calculatorPanelSource.includes("excludedLegacySynergySources.length > 0"),
+);
 check("Invariant semantic-only excludes cost-derived Synergy", routineM3.model.mode === "LEVEL_3_SEMANTIC" && routineM3.model.scoreOverride === routineM3.score);
 check(
   "Invariant semantic Synergy leaves every other radar axis unchanged",

@@ -39,7 +39,10 @@ import {
   type PacketDeliveryEvaluation,
 } from "@/lib/summoning/augmentDebuffEconomics";
 import { getNaturalAoeOneAreaCapacity } from "@/lib/powers/expectedTargetEstimation";
-import { computeLevel3SemanticSynergy } from "@/lib/calculators/semanticSynergy";
+import {
+  computeLevel3SemanticSynergy,
+  type LegacyNonPowerSynergySource,
+} from "@/lib/calculators/semanticSynergy";
 import {
   computeLevel3SelfAttackThreat,
   type SelfAttackThreatMainAction,
@@ -81,6 +84,7 @@ export type TraitAxisBonuses = {
 };
 
 export type TraitAxisWeightDefinition = {
+  name?: string | null;
   band?: MonsterTraitBand | null;
   physicalThreatWeight?: number | null;
   mentalThreatWeight?: number | null;
@@ -641,6 +645,23 @@ export function computeTraitAxisBonuses(
   }
 
   return bonuses;
+}
+
+export function computeTraitLegacySynergySources(
+  traits: TraitAxisWeightDefinition[],
+  monsterLevel: number,
+): LegacyNonPowerSynergySource[] {
+  return traits.flatMap((trait, index) => {
+    const pressureMultiplier = getTraitBandPressureMultiplier(trait.band, monsterLevel);
+    const amount =
+      clampTraitAxisWeight(trait.synergyWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
+    if (!(amount > 0)) return [];
+    return [{
+      sourceType: "TRAIT" as const,
+      name: trait.name?.trim() || `Trait ${index + 1}`,
+      amount,
+    }];
+  });
 }
 
 export function getEquipmentModifierBudgetShare(modifierValue: number): number {
@@ -4353,6 +4374,7 @@ export function computeMonsterOutcomes(
     naturalAttackRangeAxisBonuses?: Partial<RadarAxes>;
     powerContribution?: CanonicalPowerContribution | null;
     traitAxisBonuses?: Partial<TraitAxisBonuses>;
+    legacyNonPowerSynergySources?: LegacyNonPowerSynergySource[];
     selfGuardSurvivabilityPassiveState?: SelfGuardSurvivabilityPassiveState;
     selfGuardSurvivabilityActiveSnapshots?: SelfGuardSurvivabilityActiveSnapshots;
     selfBraverySurvivabilityPassiveState?: SelfBraverySurvivabilityPassiveState;
@@ -5067,11 +5089,60 @@ export function computeMonsterOutcomes(
     : legacyManipulationRaw;
   const legacyRawSynergy =
     nonPowerContribution.synergy + effectivePowerAxisVector.synergy;
+  const suppliedLegacySynergySources = opts?.legacyNonPowerSynergySources ?? [];
+  const suppliedLegacySynergyByType = suppliedLegacySynergySources.reduce(
+    (totals, source) => {
+      totals[source.sourceType] += Math.max(0, Number(source.amount) || 0);
+      return totals;
+    },
+    {
+      TRAIT: 0,
+      EQUIPMENT: 0,
+      NATURAL_ATTACK: 0,
+      LIMIT_BREAK: 0,
+      OTHER: 0,
+    } satisfies Record<LegacyNonPowerSynergySource["sourceType"], number>,
+  );
+  const fallbackLegacySynergySources: LegacyNonPowerSynergySource[] = [
+    {
+      sourceType: "TRAIT",
+      name: "Other traits",
+      amount: Math.max(0, traitAxisBonuses.synergy - suppliedLegacySynergyByType.TRAIT),
+    },
+    {
+      sourceType: "EQUIPMENT",
+      name: "Equipped item Synergy modifiers",
+      amount: Math.max(
+        0,
+        equipmentModifierAxisBonuses.synergy - suppliedLegacySynergyByType.EQUIPMENT,
+      ),
+    },
+    {
+      sourceType: "NATURAL_ATTACK",
+      name: "Natural attack Synergy weights",
+      amount: Math.max(
+        0,
+        naturalAttackGsAxisBonuses.synergy - suppliedLegacySynergyByType.NATURAL_ATTACK,
+      ),
+    },
+    {
+      sourceType: "LIMIT_BREAK",
+      name: "Custom Limit Break Synergy weights",
+      amount: Math.max(
+        0,
+        customLimitBreakAxisBonuses.synergy - suppliedLegacySynergyByType.LIMIT_BREAK,
+      ),
+    },
+  ].filter((source) => source.amount > 0);
   const semanticSynergyAxisModel = computeLevel3SemanticSynergy({
     monster,
     powers: opts?.powerContribution?.powers,
     legacyRawSynergy,
     legacyNonPowerSynergy: nonPowerContribution.synergy,
+    legacyNonPowerSynergySources: [
+      ...suppliedLegacySynergySources,
+      ...fallbackLegacySynergySources,
+    ],
     tuning: cfg.semanticSynergyAxisTuning,
   });
   const finalPreNormalizationAxes: RadarAxes = {

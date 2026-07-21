@@ -5,6 +5,7 @@ import { performance } from "node:perf_hooks";
 import {
   computeMonsterOutcomes,
   computeTraitAxisBonuses,
+  computeTraitLegacySynergySources,
   type RadarAxes,
   type TraitAxisWeightDefinition,
 } from "../lib/calculators/monsterOutcomeCalculator";
@@ -65,7 +66,6 @@ const DATABASE_OPERATIONS = [
 const GAZZKILL_MONSTER_ID = "cmlfrpajh0000eswctslf0rsk";
 const GAZZKILL_RILE_POWER_ID = "cmpy3ilyj000ga0wco7830nmy";
 const GAZZKILL_RILE_PACKET_ID = "cmpy3im0y000ha0wcxpj0vza9";
-const DIRE_WOLF_HOWL_PACKET_ID = "9913a148-070c-4a86-b949-669ebfe8a25f";
 const WOLF_BERZERKER_IRON_SKIN_RIDER_PACKET_ID = "cmq6ey1ug000by0wcp63l68vt";
 
 const POWER_INCLUDE = {
@@ -485,6 +485,7 @@ function mapMonsterPower(power: LoadedPower): Power {
 
 function traitDefinitions(monster: LoadedMonster): TraitAxisWeightDefinition[] {
   return monster.traits.map(({ trait }) => ({
+    name: trait.name,
     band: trait.band,
     physicalThreatWeight: trait.physicalThreatWeight,
     mentalThreatWeight: trait.mentalThreatWeight,
@@ -665,6 +666,11 @@ function summarizeOutcome(outcome: ReturnType<typeof computeMonsterOutcomes>) {
         ? semanticSynergy.semanticPowerIds
         : [],
       diagnostics: Array.isArray(semanticSynergy.diagnostics) ? semanticSynergy.diagnostics : [],
+      excludedLegacySynergySources: Array.isArray(
+        semanticSynergy.excludedLegacySynergySources
+      )
+        ? semanticSynergy.excludedLegacySynergySources
+        : [],
       legalActivationTurns: Array.isArray(semanticSynergy.legalActivationTurns)
         ? semanticSynergy.legalActivationTurns
         : [],
@@ -932,6 +938,10 @@ function summarizePersistedAsset(
     {
       protectionTuning: tuning.combatValues,
       traitAxisBonuses: computeTraitAxisBonuses(traitDefinitions(monster), monster.level),
+      legacyNonPowerSynergySources: computeTraitLegacySynergySources(
+        traitDefinitions(monster),
+        monster.level,
+      ),
       powerContribution: powerContribution({ powers: hydrated.powers, costs }),
     },
   );
@@ -1347,8 +1357,16 @@ async function buildPayload() {
             courtMage.semanticSynergy.semanticPowerIds.includes(entry.powerId) &&
             Math.abs(Number(entry.basePowerValue) - 9.5) <= 0.000001,
         ),
-      direWolfRemainsLegacy:
-        Boolean(direWolf) && direWolf?.semanticSynergy.mode === "LEGACY_ONLY",
+      direWolfUsesSemanticHowlWithPackTacticsExcluded:
+        Boolean(direWolf) &&
+        direWolf?.semanticSynergy.mode === "LEVEL_3_SEMANTIC_WITH_EXCLUSIONS" &&
+        Math.abs(Number(direWolf?.semanticSynergy.rawSemanticSupport) - 22.734375) <= 0.000001 &&
+        Math.abs(Number(direWolf?.finalSynergy) - 4.923795225863854) <= 0.000001 &&
+        direWolf.semanticSynergy.excludedLegacySynergySources.some(
+          (source) =>
+            asRecord(source).name === "Pack Tactics" &&
+            Math.abs(asNumber(asRecord(source).amount) - 0.75) <= 0.000001,
+        ),
       gazzkillStableMonsterIdentity:
         gazzkillRecord?.id === GAZZKILL_MONSTER_ID &&
         gazzkillRecord.name === "Gazzkill" &&
@@ -1446,7 +1464,6 @@ async function buildPayload() {
         JSON.stringify(gazzkill?.modifiers) === JSON.stringify([null, null, 1]),
       onlyApprovedLegacyLevelThreeAugmentsRemain:
         JSON.stringify(remainingLegacyLevelThreeAugmentPacketIds) === JSON.stringify([
-          DIRE_WOLF_HOWL_PACKET_ID,
           WOLF_BERZERKER_IRON_SKIN_RIDER_PACKET_ID,
         ].sort()),
       wolfBerzerkerSelfPassiveExcluded:
@@ -1462,7 +1479,8 @@ async function buildPayload() {
         return unsupported.rawSynergy === 0 && unsupported.finalSynergy === 0;
       })(),
       noSavedAssetSilentlyMigrated: levelThreeAssets.every((asset) =>
-        asset.semanticSynergy.mode === "LEVEL_3_SEMANTIC"
+        asset.semanticSynergy.mode === "LEVEL_3_SEMANTIC" ||
+        asset.semanticSynergy.mode === "LEVEL_3_SEMANTIC_WITH_EXCLUSIONS"
           ? Number(asset.semanticSynergy.detectedSemanticPacketCount) > 0
           : true,
       ),
