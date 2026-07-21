@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
+import { MonsterBlockCard } from "../app/summoning-circle/components/MonsterBlockCard";
 import {
   createDefaultPowerPacket,
   defaultPower,
@@ -11,6 +14,7 @@ import { DEFAULT_POWER_TUNING_VALUES, type PowerTuningSnapshot } from "../lib/co
 import { applyAutomaticExpectedTargetsToPowers } from "../lib/powers/expectedTargetEstimation";
 import type { AbilityRestrictionDefinitionV1 } from "../lib/restrictions";
 import {
+  getRestrictionReadOnlyModel,
   selectRestrictionAuthoringChoice,
   selectRestrictionOperator,
   selectRestrictionSubject,
@@ -410,12 +414,52 @@ ok(editorSource.includes("rehydrateMonsterPowerRestrictionDrafts(authoritativeEd
 ok(editorSource.includes("rehydrateMonsterPowerRestrictionDrafts(copiedEditor.powers)"), "Copy response rehydrates copied Power drafts.");
 ok(!editorSource.includes("playerPowerEditorIntegration"), "Monster UI does not import Player integration.");
 ok(!editorSource.includes("RoleplayAbility"), "Monster UI adds no Roleplay integration.");
-ok(printSource.includes('import { RestrictionReadOnly }'), "Print uses read-only Restriction presentation.");
-ok(printSource.includes('data-testid="monster-power-print-restrictions"'), "Printed Powers receive a separate Restriction section.");
+ok(!printSource.includes('import { RestrictionReadOnly }'), "Print no longer imports the full read-only Restriction presentation.");
+ok(!printSource.includes('data-testid="monster-power-print-restrictions"'), "Print has no separate Power Restrictions section.");
+ok(!printSource.includes("Power Restrictions"), "Print does not reserve space for a Power Restrictions heading.");
 ok(!printSource.includes("RestrictionEditor"), "Print contains no editor controls.");
-ok(printSource.includes("definition={power.restriction ?? null}"), "Print explicitly displays No Restriction when absent.");
+ok(!printSource.includes("definition={power.restriction ?? null}"), "Print does not render null Restriction presentations.");
 ok(blockCardSource.includes("renderPowerDescriptorLines(power).map"), "Ordinary Power descriptor rendering remains present and separate.");
-ok(!blockCardSource.includes("RestrictionReadOnly"), "Restriction display is not spliced into the ordinary descriptor renderer.");
+ok(!blockCardSource.includes("<RestrictionReadOnly"), "The full Restriction presentation is not spliced into Power cards.");
+ok(blockCardSource.includes('import { getRestrictionReadOnlyModel }'), "Power cards resolve the existing canonical Restriction descriptor.");
+ok(blockCardSource.includes("const restrictionDescriptor = inPrint && power.restriction"), "Only printed Powers with a Restriction resolve an inline descriptor.");
+ok(!blockCardSource.includes('"No Restriction"'), "Power cards never print a No Restriction placeholder.");
+ok(
+  blockCardSource.indexOf("renderPowerDescriptorLines(power).map") <
+    blockCardSource.indexOf("{restrictionDescriptor ? (") &&
+    blockCardSource.indexOf("{restrictionDescriptor ? (") <
+    blockCardSource.indexOf("<p title={cooldownDisplaySource}>"),
+  "The Restriction descriptor is below existing descriptor text and above Cooldown/Counter.",
+);
+
+const printMonster = (power: MonsterPower) => renderToStaticMarkup(createElement(MonsterBlockCard, {
+  monster: { ...campaignMonster, powers: [power] },
+  isPrint: true,
+}));
+const printedText = (markup: string) => markup
+  .replace(/<[^>]*>/g, " ")
+  .replace(/&#x27;/g, "'")
+  .replace(/&quot;/g, '"')
+  .replace(/&amp;/g, "&")
+  .replace(/\s+/g, " ")
+  .trim();
+
+const unrestrictedPrintText = printedText(printMonster({ ...nonePower, name: "Open Strike" }));
+ok(!unrestrictedPrintText.includes("No Restriction"), "An unrestricted printed Power emits no Restriction placeholder.");
+ok(!unrestrictedPrintText.includes("Restriction Descriptor"), "An unrestricted printed Power emits no standalone Restriction panel content.");
+
+const expectedRestrictionDescriptor = getRestrictionReadOnlyModel(standard, {
+  consumerNoun: "Power",
+}).descriptor;
+ok(expectedRestrictionDescriptor, "The standard Restriction fixture resolves a canonical descriptor.");
+const restrictedPrintText = printedText(printMonster(standardPower));
+ok(restrictedPrintText.includes(expectedRestrictionDescriptor), "A restricted printed Power includes only its canonical Restriction descriptor.");
+ok(
+  restrictedPrintText.indexOf(expectedRestrictionDescriptor) < restrictedPrintText.indexOf("Cooldown:"),
+  "Rendered Restriction descriptor appears before Cooldown/Counter.",
+);
+ok(!restrictedPrintText.includes("Evaluation Status"), "A restricted printed Power omits Restriction evaluation metadata.");
+ok(!restrictedPrintText.includes("Validation Status"), "A restricted printed Power omits Restriction validation metadata.");
 
 assert.ok(checks >= 100, `Expected at least 100 Monster editor integration checks, got ${checks}.`);
 console.log(`Monster Power Restriction editor integration smoke passed (${checks} checks).`);

@@ -40,6 +40,7 @@ import {
   normalizeProtectionTuning,
   type ProtectionTuningValues,
 } from "@/lib/config/combatTuningShared";
+import { getRestrictionReadOnlyModel } from "@/lib/restrictions/editorModel";
 
 export type WeaponProjection = {
   id: string;
@@ -1778,6 +1779,11 @@ export function MonsterBlockCard({
               ? `Current active tuning${cooldownAuthority.tuningSetId ? ` (${cooldownAuthority.tuningSetId})` : ""}.`
               : "Explicit built-in defaults preview; not current-balance gameplay authority."
             : "Cooldown authority unresolved; active power tuning is required.";
+          const restrictionDescriptor = inPrint && power.restriction
+            ? getRestrictionReadOnlyModel(power.restriction, {
+                consumerNoun: "Power",
+              }).descriptor
+            : null;
 
           return (
           <div
@@ -1798,6 +1804,11 @@ export function MonsterBlockCard({
             {renderPowerDescriptorLines(power).map((line, i) => (
               <p key={i}>{highlightMechanics(line)}</p>
             ))}
+            {restrictionDescriptor ? (
+              <p className="sc-power-restriction-descriptor">
+                {highlightMechanics(restrictionDescriptor)}
+              </p>
+            ) : null}
             <p title={cooldownDisplaySource}>
               {highlightMechanics(
                 `Cooldown: ${displayCooldownTurns ?? "Unresolved"} | Counter: ${
