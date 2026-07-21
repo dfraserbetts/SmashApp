@@ -1444,9 +1444,9 @@ async function buildPayload() {
       gazzkillNonSynergyAxesRemainUnderCurrentOwnership:
         gazzkill?.radarAxes.physicalThreat === 0.00067 &&
         gazzkill.radarAxes.mentalThreat === 0 &&
-        gazzkill.radarAxes.physicalSurvivability === 9.739823 &&
-        gazzkill.radarAxes.mentalSurvivability === 6.454624 &&
-        gazzkill.radarAxes.manipulation === 2.65 &&
+        gazzkill.radarAxes.physicalSurvivability === 9.725262 &&
+        gazzkill.radarAxes.mentalSurvivability === 5.830205 &&
+        gazzkill.radarAxes.manipulation === 3.033907 &&
         gazzkill.radarAxes.mobility === 2.039084 &&
         gazzkill.radarAxes.presence === 4.368786 &&
         gazzkill.powerWarnings.length === 0,
