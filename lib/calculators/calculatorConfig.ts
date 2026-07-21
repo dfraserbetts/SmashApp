@@ -20,14 +20,67 @@ export type DurabilityLaneBaseline = {
   representativeInjuryDieSides: 4 | 6 | 8 | 10 | 12;
 };
 
+export type Level3DurabilityReferenceAttributes = {
+  expectedTotal: number;
+  attackDie: "D4" | "D6" | "D8" | "D10" | "D12";
+  guardDie: "D4" | "D6" | "D8" | "D10" | "D12";
+  fortitudeDie: "D4" | "D6" | "D8" | "D10" | "D12";
+  intellectDie: "D4" | "D6" | "D8" | "D10" | "D12";
+  synergyDie: "D4" | "D6" | "D8" | "D10" | "D12";
+  braveryDie: "D4" | "D6" | "D8" | "D10" | "D12";
+};
+
 export type DurabilityBaselinePackage = {
   id: string;
   level: number;
   tier: "MINION" | "SOLDIER" | "ELITE" | "BOSS";
   legendary: boolean;
+  referenceAttributes: Level3DurabilityReferenceAttributes;
   physical: DurabilityLaneBaseline;
   mental: DurabilityLaneBaseline;
 };
+
+export const LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES = {
+  MINION: {
+    expectedTotal: 34,
+    attackDie: "D4",
+    guardDie: "D6",
+    fortitudeDie: "D6",
+    intellectDie: "D6",
+    synergyDie: "D6",
+    braveryDie: "D6",
+  },
+  SOLDIER: {
+    expectedTotal: 38,
+    attackDie: "D8",
+    guardDie: "D4",
+    fortitudeDie: "D6",
+    intellectDie: "D8",
+    synergyDie: "D6",
+    braveryDie: "D6",
+  },
+  ELITE: {
+    expectedTotal: 42,
+    attackDie: "D10",
+    guardDie: "D6",
+    fortitudeDie: "D4",
+    intellectDie: "D10",
+    synergyDie: "D4",
+    braveryDie: "D8",
+  },
+  BOSS: {
+    expectedTotal: 46,
+    attackDie: "D10",
+    guardDie: "D8",
+    fortitudeDie: "D4",
+    intellectDie: "D10",
+    synergyDie: "D6",
+    braveryDie: "D8",
+  },
+} as const satisfies Record<
+  "MINION" | "SOLDIER" | "ELITE" | "BOSS",
+  Level3DurabilityReferenceAttributes
+>;
 
 export type PressureReachCategory = "MELEE" | "RANGED" | "AOE";
 
@@ -715,48 +768,54 @@ export const calculatorConfig: CalculatorConfig = {
         level: 3,
         tier: "MINION",
         legendary: false,
-        physical: { expectedHp: 5, expectedProtection: 0, expectedDefenceDice: 1, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 0, expectedDodgeDice: 2, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 4 },
-        mental: { expectedHp: 5, expectedProtection: 0, expectedDefenceDice: 1, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 0, expectedDodgeDice: 0, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 4 },
+        referenceAttributes: LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES.MINION,
+        physical: { expectedHp: 12, expectedProtection: 0, expectedDefenceDice: 1, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 0, expectedDodgeDice: 2, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 4 },
+        mental: { expectedHp: 14, expectedProtection: 0, expectedDefenceDice: 1, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 0, expectedDodgeDice: 0, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 4 },
       },
       {
         id: "l3-soldier-standard-v1",
         level: 3,
         tier: "SOLDIER",
         legendary: false,
-        physical: { expectedHp: 10, expectedProtection: 1, expectedDefenceDice: 2, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 6 },
-        mental: { expectedHp: 10, expectedProtection: 1, expectedDefenceDice: 2, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 6 },
+        referenceAttributes: LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES.SOLDIER,
+        physical: { expectedHp: 21, expectedProtection: 1, expectedDefenceDice: 2, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 6 },
+        mental: { expectedHp: 22, expectedProtection: 1, expectedDefenceDice: 2, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 6 },
       },
       {
         id: "l3-elite-standard-v1",
         level: 3,
         tier: "ELITE",
         legendary: false,
-        physical: { expectedHp: 20, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
-        mental: { expectedHp: 20, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
+        referenceAttributes: LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES.ELITE,
+        physical: { expectedHp: 34, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
+        mental: { expectedHp: 38, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
       },
       {
         id: "l3-legendary-elite-standard-v1",
         level: 3,
         tier: "ELITE",
         legendary: true,
-        physical: { expectedHp: 30, expectedProtection: 1, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 3, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
-        mental: { expectedHp: 30, expectedProtection: 1, expectedDefenceDice: 2, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
+        referenceAttributes: LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES.ELITE,
+        physical: { expectedHp: 34, expectedProtection: 1, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 3, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
+        mental: { expectedHp: 38, expectedProtection: 1, expectedDefenceDice: 2, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
       },
       {
         id: "l3-boss-standard-v1",
         level: 3,
         tier: "BOSS",
         legendary: false,
-        physical: { expectedHp: 64, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
-        mental: { expectedHp: 64, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
+        referenceAttributes: LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES.BOSS,
+        physical: { expectedHp: 66, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
+        mental: { expectedHp: 74, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
       },
       {
         id: "l3-legendary-boss-standard-v1",
         level: 3,
         tier: "BOSS",
         legendary: true,
-        physical: { expectedHp: 64, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
-        mental: { expectedHp: 64, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
+        referenceAttributes: LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES.BOSS,
+        physical: { expectedHp: 66, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
+        mental: { expectedHp: 74, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
       },
     ],
   },

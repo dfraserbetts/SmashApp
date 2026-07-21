@@ -703,6 +703,31 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     notes: ["Power packages do not attach centralized cooldown authority."],
   }),
   tsxSuite({
+    id: "level3-durability-legal-baselines",
+    title: "Level 3 legal durability baselines",
+    family: "Durability reconciliation",
+    description:
+      "Exhaustively select legal exact-budget Level 3 reference attributes and verify production-generated canonical Health.",
+    compatibility: "AVAILABLE",
+    modes: ["axes", "full", "changed"],
+    script: "scripts/level3DurabilityLegalBaselines.smoke.ts",
+    deterministicSeeds: [],
+    mutationSafety: syntheticReadOnly,
+    timeoutMs: 120_000,
+    changedPathPatterns: [
+      "scripts/level3DurabilityLegalBaselines.smoke.ts",
+      "lib/summoning/attributeBalancingGuide.ts",
+      "lib/summoning/attributes.ts",
+      ...outcomeDependencyPatterns,
+    ],
+    failureSeverity: "BLOCKER",
+    supportsJson: false,
+    baselinePolicy: selfAsserting(
+      "The exhaustive legal-allocation search, production Health generator, configured canonical pools, and exact-budget invariants must agree.",
+    ),
+    notes: ["Uses production calculators and in-memory fixtures only; performs no database or repository writes."],
+  }),
+  tsxSuite({
     id: "pressure-axis-reconciliation",
     title: "Pressure and remaining-axis reconciliation",
     family: "Pressure reconciliation",

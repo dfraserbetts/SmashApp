@@ -13,7 +13,10 @@ import {
   normalizeCombatTuning,
   normalizeCombatTuningFlatValues,
 } from "../lib/config/combatTuningShared";
-import type { DurabilityBaselinePackage } from "../lib/calculators/calculatorConfig";
+import {
+  LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES,
+  type DurabilityBaselinePackage,
+} from "../lib/calculators/calculatorConfig";
 import {
   normalizeOutcomeNormalizationValues,
   outcomeNormalizationValuesToCalculatorConfig,
@@ -22,7 +25,11 @@ import {
   normalizePowerTuningValues,
   type PowerTuningSnapshot,
 } from "../lib/config/powerTuningShared";
-import { getWillpowerDiceCountFromAttributes } from "../lib/summoning/attributes";
+import {
+  calculateMonsterResilienceValues,
+  diceSizeToNumber,
+  getWillpowerDiceCountFromAttributes,
+} from "../lib/summoning/attributes";
 import { resolvePowerCosts } from "../lib/summoning/powerCostResolver";
 
 type PrismaClientInstance = typeof import("../prisma/client")["prisma"];
@@ -276,10 +283,14 @@ function summarizeMonster(
     pools: {
       physicalHp: monster.physicalResilienceMax,
       mentalHp: monster.mentalPerseveranceMax,
-      expectedPhysicalHp: round(asNumber(poolHealth.expectedPhysicalResilience)),
-      expectedMentalHp: round(asNumber(poolHealth.expectedMentalPerseverance)),
-      physicalRatio: round(asNumber(poolHealth.physicalPoolRatio), 3),
-      mentalRatio: round(asNumber(poolHealth.mentalPoolRatio), 3),
+      legacyGenericExpectedPhysicalHp: round(
+        asNumber(poolHealth.legacyGenericExpectedPhysicalResilience),
+      ),
+      legacyGenericExpectedMentalHp: round(
+        asNumber(poolHealth.legacyGenericExpectedMentalPerseverance),
+      ),
+      legacyGenericPhysicalRatio: round(asNumber(poolHealth.legacyGenericPhysicalPoolRatio), 3),
+      legacyGenericMentalRatio: round(asNumber(poolHealth.legacyGenericMentalPoolRatio), 3),
       physicalRawBonus: round(asNumber(physicalPoolLane.rawBonus)),
       mentalRawBonus: round(asNumber(mentalPoolLane.rawBonus)),
     },
@@ -290,11 +301,19 @@ function summarizeMonster(
       naturalMental: monster.naturalMentalProtection,
     },
     attributes: {
+      attack: monster.attackDie,
       guard: monster.guardDie,
       fortitude: monster.fortitudeDie,
       intellect: monster.intellectDie,
       synergy: monster.synergyDie,
       bravery: monster.braveryDie,
+      total:
+        diceSizeToNumber(monster.attackDie) +
+        diceSizeToNumber(monster.guardDie) +
+        diceSizeToNumber(monster.fortitudeDie) +
+        diceSizeToNumber(monster.intellectDie) +
+        diceSizeToNumber(monster.synergyDie) +
+        diceSizeToNumber(monster.braveryDie),
       armorSkillValue: monster.armorSkillValue,
     },
     resists: {
@@ -540,6 +559,19 @@ async function loadMonsters(prisma: PrismaClientInstance) {
   });
 }
 
+async function loadLevel3Inventory(prisma: PrismaClientInstance) {
+  return prisma.monster.findMany({
+    where: { campaignId: CAMPAIGN_ID, level: 3 },
+    orderBy: [{ tier: "asc" }, { name: "asc" }],
+    include: {
+      naturalAttack: true,
+      attacks: { orderBy: { sortOrder: "asc" } },
+      traits: { include: { trait: true }, orderBy: { sortOrder: "asc" } },
+      powers: { orderBy: { sortOrder: "asc" }, include: POWER_INCLUDE },
+    },
+  });
+}
+
 async function loadDireWolf(prisma: PrismaClientInstance) {
   return prisma.monster.findUnique({
     where: { id: DIRE_WOLF_ID },
@@ -552,11 +584,159 @@ async function loadDireWolf(prisma: PrismaClientInstance) {
   });
 }
 
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const ordered = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(ordered.length / 2);
+  return ordered.length % 2 === 0
+    ? ((ordered[middle - 1] ?? 0) + (ordered[middle] ?? 0)) / 2
+    : (ordered[middle] ?? 0);
+}
+
+function percentage(count: number, total: number): number {
+  return total > 0 ? round((count / total) * 100, 2) : 0;
+}
+
+function summarizeCanonicalHealthReferences(
+  tuning: Awaited<ReturnType<typeof loadActiveTuning>>,
+) {
+  return (Object.keys(LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES) as Array<
+    keyof typeof LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES
+  >).map((tier) => {
+    const referenceAttributes = LEVEL_3_DURABILITY_REFERENCE_ATTRIBUTES[tier];
+    const generated = calculateMonsterResilienceValues(
+      {
+        level: 3,
+        tier,
+        legendary: false,
+        ...referenceAttributes,
+      },
+      tuning.combatValues,
+    );
+    const configuredPackages = tuning.calculatorConfig.durabilityAxisTuning.baselines
+      .filter((baseline) => baseline.tier === tier)
+      .map((baseline) => ({
+        id: baseline.id,
+        legendary: baseline.legendary,
+        physicalHp: baseline.physical.expectedHp,
+        mentalHp: baseline.mental.expectedHp,
+      }));
+    return {
+      tier,
+      referenceAttributes,
+      actualTotal:
+        diceSizeToNumber(referenceAttributes.attackDie) +
+        diceSizeToNumber(referenceAttributes.guardDie) +
+        diceSizeToNumber(referenceAttributes.fortitudeDie) +
+        diceSizeToNumber(referenceAttributes.intellectDie) +
+        diceSizeToNumber(referenceAttributes.synergyDie) +
+        diceSizeToNumber(referenceAttributes.braveryDie),
+      generatedPhysicalHp: generated.physicalResilienceMax,
+      generatedMentalHp: generated.mentalPerseveranceMax,
+      configuredPackages,
+      authority: "production calculateMonsterResilienceValues; standard tier generation",
+    };
+  });
+}
+
+function summarizeLevel3Inventory(
+  beforeSamples: ReturnType<typeof summarizeMonster>[],
+  afterSamples: ReturnType<typeof summarizeMonster>[],
+  canonicalReferences: ReturnType<typeof summarizeCanonicalHealthReferences>,
+) {
+  return canonicalReferences.map((reference) => {
+    const beforeTierSamples = beforeSamples.filter((sample) => sample.tier === reference.tier);
+    const afterTierSamples = afterSamples.filter((sample) => sample.tier === reference.tier);
+    const legalExactBudget = afterTierSamples.filter(
+      (sample) => sample.attributes.total === reference.referenceAttributes.expectedTotal,
+    );
+    const distribution = (tierSamples: typeof afterTierSamples) => ({
+      physicalSurvivabilityScoreMedian: round(
+        median(tierSamples.map((sample) => sample.axis.physical)),
+        3,
+      ),
+      mentalSurvivabilityScoreMedian: round(
+        median(tierSamples.map((sample) => sample.axis.mental)),
+        3,
+      ),
+      physicalAbove7_5Percent: percentage(
+        tierSamples.filter((sample) => sample.axis.physical > 7.5).length,
+        tierSamples.length,
+      ),
+      mentalAbove7_5Percent: percentage(
+        tierSamples.filter((sample) => sample.axis.mental > 7.5).length,
+        tierSamples.length,
+      ),
+      physicalAbove9Percent: percentage(
+        tierSamples.filter((sample) => sample.axis.physical > 9).length,
+        tierSamples.length,
+      ),
+      mentalAbove9Percent: percentage(
+        tierSamples.filter((sample) => sample.axis.mental > 9).length,
+        tierSamples.length,
+      ),
+    });
+    return {
+      tier: reference.tier,
+      count: afterTierSamples.length,
+      canonicalPhysicalHp: reference.generatedPhysicalHp,
+      canonicalMentalHp: reference.generatedMentalHp,
+      actualPhysicalHpMedian: round(
+        median(afterTierSamples.map((sample) => sample.pools.physicalHp)),
+      ),
+      actualMentalHpMedian: round(
+        median(afterTierSamples.map((sample) => sample.pools.mentalHp)),
+      ),
+      before: distribution(beforeTierSamples),
+      after: distribution(afterTierSamples),
+      legalExactBudgetCount: legalExactBudget.length,
+      legalExactBudgetAboveCanonicalPhysical: legalExactBudget
+        .filter((sample) => sample.pools.physicalHp > reference.generatedPhysicalHp)
+        .map((sample) => ({ name: sample.name, hp: sample.pools.physicalHp })),
+      legalExactBudgetAboveCanonicalMental: legalExactBudget
+        .filter((sample) => sample.pools.mentalHp > reference.generatedMentalHp)
+        .map((sample) => ({ name: sample.name, hp: sample.pools.mentalHp })),
+    };
+  });
+}
+
+function withPriorDurabilityHealth(
+  config: Awaited<ReturnType<typeof loadActiveTuning>>["calculatorConfig"],
+) {
+  const priorByPackage: Record<string, { physical: number; mental: number }> = {
+    "l3-minion-standard-v1": { physical: 5, mental: 5 },
+    "l3-soldier-standard-v1": { physical: 10, mental: 10 },
+    "l3-elite-standard-v1": { physical: 20, mental: 20 },
+    "l3-legendary-elite-standard-v1": { physical: 30, mental: 30 },
+    "l3-boss-standard-v1": { physical: 64, mental: 64 },
+    "l3-legendary-boss-standard-v1": { physical: 64, mental: 64 },
+  };
+  return {
+    ...config,
+    durabilityAxisTuning: {
+      ...config.durabilityAxisTuning,
+      baselines: config.durabilityAxisTuning.baselines.map((baseline) => ({
+        ...baseline,
+        physical: {
+          ...baseline.physical,
+          expectedHp: priorByPackage[baseline.id]?.physical ?? baseline.physical.expectedHp,
+        },
+        mental: {
+          ...baseline.mental,
+          expectedHp: priorByPackage[baseline.id]?.mental ?? baseline.mental.expectedHp,
+        },
+      })),
+    },
+  };
+}
+
 function buildPayload(params: {
   repoHead: string;
   gitStatus: string;
   tuning: Awaited<ReturnType<typeof loadActiveTuning>>;
   samples: ReturnType<typeof summarizeMonster>[];
+  priorInventorySamples: ReturnType<typeof summarizeMonster>[];
+  inventorySamples: ReturnType<typeof summarizeMonster>[];
   direWolf: ReturnType<typeof summarizeMonster> | null;
   missingRequired: string[];
   missingOptional: string[];
@@ -570,6 +750,7 @@ function buildPayload(params: {
   const baselineAnchors = params.tuning.calculatorConfig.durabilityAxisTuning.baselines
     .filter((baseline) => baseline.level === 3)
     .map((baseline) => summarizeBaselineAnchor(baseline, params.tuning));
+  const canonicalHealthReferences = summarizeCanonicalHealthReferences(params.tuning);
   return {
     title: "Summoning Circle durability-axis reconciliation",
     provenance: {
@@ -644,6 +825,12 @@ function buildPayload(params: {
     missingRequired: params.missingRequired,
     missingOptional: params.missingOptional,
     baselineAnchors,
+    canonicalHealthReferences,
+    level3Inventory: summarizeLevel3Inventory(
+      params.priorInventorySamples,
+      params.inventorySamples,
+      canonicalHealthReferences,
+    ),
     direWolf: params.direWolf,
     samples: params.samples,
   };
@@ -666,6 +853,14 @@ function printHuman(payload: ReturnType<typeof buildPayload>) {
   console.log(
     `tierMultipliers=${JSON.stringify(payload.activeDurabilityTuning.displayTierMultipliers)}`,
   );
+  console.log("");
+  console.log("Level 3 legal reference allocations and generated canonical Health:");
+  for (const reference of payload.canonicalHealthReferences) {
+    const attributes = reference.referenceAttributes;
+    console.log(
+      `- ${reference.tier}: ${attributes.attackDie}/${attributes.guardDie}/${attributes.fortitudeDie}/${attributes.intellectDie}/${attributes.synergyDie}/${attributes.braveryDie} total=${reference.actualTotal}/${attributes.expectedTotal} Health=${reference.generatedPhysicalHp}/${reference.generatedMentalHp}`,
+    );
+  }
   console.log("");
   console.log("Level 3 accepted-package anchors:");
   for (const anchor of payload.baselineAnchors) {
@@ -700,6 +895,13 @@ function printHuman(payload: ReturnType<typeof buildPayload>) {
       ].join(" | "),
     );
   }
+  console.log("");
+  console.log("Full read-only Level 3 inventory by tier:");
+  for (const tier of payload.level3Inventory) {
+    console.log(
+      `- ${tier.tier}: n=${tier.count}, canonicalHP=${tier.canonicalPhysicalHp}/${tier.canonicalMentalHp}, medianHP=${tier.actualPhysicalHpMedian}/${tier.actualMentalHpMedian}, medianScore=${tier.before.physicalSurvivabilityScoreMedian}/${tier.before.mentalSurvivabilityScoreMedian}->${tier.after.physicalSurvivabilityScoreMedian}/${tier.after.mentalSurvivabilityScoreMedian}, >7.5=${tier.before.physicalAbove7_5Percent}%/${tier.before.mentalAbove7_5Percent}%->${tier.after.physicalAbove7_5Percent}%/${tier.after.mentalAbove7_5Percent}%, >9=${tier.before.physicalAbove9Percent}%/${tier.before.mentalAbove9Percent}%->${tier.after.physicalAbove9Percent}%/${tier.after.mentalAbove9Percent}%, exactBudget=${tier.legalExactBudgetCount}, exactAboveP=${tier.legalExactBudgetAboveCanonicalPhysical.length}, exactAboveM=${tier.legalExactBudgetAboveCanonicalMental.length}`,
+    );
+  }
   if (payload.missingRequired.length > 0) {
     console.log(`Missing required samples: ${payload.missingRequired.join(", ")}`);
   }
@@ -726,19 +928,28 @@ async function main() {
     if (!campaign || campaign.name !== CAMPAIGN_NAME) {
       throw new Error(`Balance Environment campaign identity mismatch for ${CAMPAIGN_ID}.`);
     }
-    const [tuning, rows, direWolfRow] = await Promise.all([
+    const [tuning, rows, inventoryRows, direWolfRow] = await Promise.all([
       loadActiveTuning(prisma),
       loadMonsters(prisma),
+      loadLevel3Inventory(prisma),
       loadDireWolf(prisma),
     ]);
     const foundNames = new Set(rows.map((row) => row.name));
     const missingRequired = REQUIRED_SAMPLE_NAMES.filter((name) => !foundNames.has(name));
     const missingOptional = OPTIONAL_SAMPLE_NAMES.filter((name) => !foundNames.has(name));
+    const priorInventoryTuning = {
+      ...tuning,
+      calculatorConfig: withPriorDurabilityHealth(tuning.calculatorConfig),
+    };
     const payload = buildPayload({
       repoHead,
       gitStatus,
       tuning,
       samples: rows.map((row) => summarizeMonster(row, tuning)),
+      priorInventorySamples: inventoryRows.map((row) =>
+        summarizeMonster(row, priorInventoryTuning),
+      ),
+      inventorySamples: inventoryRows.map((row) => summarizeMonster(row, tuning)),
       direWolf: direWolfRow ? summarizeMonster(direWolfRow, tuning) : null,
       missingRequired,
       missingOptional,

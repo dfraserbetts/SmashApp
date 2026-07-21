@@ -5676,9 +5676,9 @@ export function computeMonsterOutcomes(
         },
         durabilityAxisBaselineModel: durabilityBaselinePackage
           ? {
-              source: "accepted_level_3_durability_packages",
+              source: "production_generated_level_3_legal_attribute_health",
               policy:
-                "Survivability axes are relative to the accepted package for the same level, tier, and legendary state; cross-tier ordering is not required.",
+                "Survivability axes use the production-generated Health of one legal exact-budget reference allocation per Level 3 tier, plus the accepted non-Health package for the same tier and legendary state; cross-tier ordering is not required.",
               fallback: false,
               baselinePackage: durabilityBaselinePackage,
               physicalSurvivability: physicalDurabilityNormalization,
@@ -5713,12 +5713,15 @@ export function computeMonsterOutcomes(
         ],
       },
       poolHealthBreakdown: {
-        expectedPhysicalResilience,
-        expectedMentalPerseverance,
+        authority: "LEGACY_GENERIC_CROSS_LEVEL_POOL_CURVE",
+        policy:
+          "These values drive only the legacy generic raw pool lane and fallback normalization; they are not the canonical Level 3 expected Health shown by the accepted durability package.",
+        legacyGenericExpectedPhysicalResilience: expectedPhysicalResilience,
+        legacyGenericExpectedMentalPerseverance: expectedMentalPerseverance,
         currentPhysicalResilienceMax: clampNonNegative(monster.physicalResilienceMax),
         currentMentalPerseveranceMax: clampNonNegative(monster.mentalPerseveranceMax),
-        physicalPoolRatio,
-        mentalPoolRatio,
+        legacyGenericPhysicalPoolRatio: physicalPoolRatio,
+        legacyGenericMentalPoolRatio: mentalPoolRatio,
         poolAtExpectedShare: cfg.healthPoolTuning.poolAtExpectedShare,
         physicalLane: physicalPoolLane,
         mentalLane: mentalPoolLane,

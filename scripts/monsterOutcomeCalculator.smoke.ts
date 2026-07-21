@@ -1496,6 +1496,82 @@ for (const baseline of calculatorConfig.durabilityAxisTuning.baselines) {
   assertApprox(anchor.radarAxes.mentalSurvivability, 5, 0.000001, `${baseline.id} mental`);
 }
 
+const priorDurabilityHealthByPackage: Record<string, { physical: number; mental: number }> = {
+  "l3-minion-standard-v1": { physical: 5, mental: 5 },
+  "l3-soldier-standard-v1": { physical: 10, mental: 10 },
+  "l3-elite-standard-v1": { physical: 20, mental: 20 },
+  "l3-legendary-elite-standard-v1": { physical: 30, mental: 30 },
+  "l3-boss-standard-v1": { physical: 64, mental: 64 },
+  "l3-legendary-boss-standard-v1": { physical: 64, mental: 64 },
+};
+const priorDurabilityHealthConfig = {
+  ...calculatorConfig,
+  durabilityAxisTuning: {
+    ...calculatorConfig.durabilityAxisTuning,
+    baselines: calculatorConfig.durabilityAxisTuning.baselines.map((baseline) => ({
+      ...baseline,
+      physical: {
+        ...baseline.physical,
+        expectedHp: priorDurabilityHealthByPackage[baseline.id]?.physical ?? baseline.physical.expectedHp,
+      },
+      mental: {
+        ...baseline.mental,
+        expectedHp: priorDurabilityHealthByPackage[baseline.id]?.mental ?? baseline.mental.expectedHp,
+      },
+    })),
+  },
+};
+const durabilityCalibrationFixture = {
+  ...createBaseMonster(),
+  level: 3,
+  tier: "ELITE" as const,
+  physicalResilienceMax: 34,
+  mentalPerseveranceMax: 36,
+};
+const priorDurabilityHealthOutcome = computeMonsterOutcomes(
+  durabilityCalibrationFixture,
+  priorDurabilityHealthConfig,
+);
+const canonicalDurabilityHealthOutcome = computeMonsterOutcomes(
+  durabilityCalibrationFixture,
+  calculatorConfig,
+);
+for (const axis of [
+  "physicalThreat",
+  "mentalThreat",
+  "manipulation",
+  "synergy",
+  "mobility",
+  "presence",
+] as const) {
+  assertApprox(
+    canonicalDurabilityHealthOutcome.radarAxes[axis],
+    priorDurabilityHealthOutcome.radarAxes[axis],
+    0.000001,
+    `${axis} independence from durability Health calibration`,
+  );
+}
+const levelTwoDurabilityFixture = { ...durabilityCalibrationFixture, level: 2 };
+assert.deepEqual(
+  computeMonsterOutcomes(levelTwoDurabilityFixture, calculatorConfig).radarAxes,
+  computeMonsterOutcomes(levelTwoDurabilityFixture, priorDurabilityHealthConfig).radarAxes,
+  "non-Level-3 outcomes must ignore Level 3 durability packages",
+);
+const canonicalPoolHealthDebug = (
+  canonicalDurabilityHealthOutcome.debug as {
+    poolHealthBreakdown: {
+      authority: string;
+      policy: string;
+      legacyGenericExpectedPhysicalResilience: number;
+      legacyGenericExpectedMentalPerseverance: number;
+    };
+  }
+).poolHealthBreakdown;
+assert.equal(canonicalPoolHealthDebug.authority, "LEGACY_GENERIC_CROSS_LEVEL_POOL_CURVE");
+assert.match(canonicalPoolHealthDebug.policy, /not the canonical Level 3 expected Health/i);
+assert.ok(canonicalPoolHealthDebug.legacyGenericExpectedPhysicalResilience > 0);
+assert.ok(canonicalPoolHealthDebug.legacyGenericExpectedMentalPerseverance > 0);
+
 const canonicalMobilityPower = {
   mobility: 4,
 };
