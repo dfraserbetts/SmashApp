@@ -29,6 +29,12 @@ import { signatureMovePointPool, summarizeCharacterPowers } from "@/lib/characte
 import type { CharacterBuilderTuningSnapshot } from "@/lib/config/characterBuilderTuningShared";
 import type { CombatDieSize } from "@/lib/combat-lab/types";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
+import type { CharacterRestrictionGovernanceReadModel } from "@/lib/restrictions/governanceView";
+import {
+  RESTRICTION_PRINT_PROJECTION_CONSUMER_LABELS,
+  projectCharacterRestrictionPrintData,
+  type RestrictionPrintProjectionGovernanceSource,
+} from "@/lib/restrictions/printProjection";
 
 type BuilderCharacter = {
   id: string;
@@ -83,6 +89,8 @@ export function CharacterPrintMode({
   const [payload, setPayload] = useState<BuilderPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [governanceSource, setGovernanceSource] =
+    useState<RestrictionPrintProjectionGovernanceSource | null>(null);
   const [printType, setPrintType] = useState<CharacterSheetPrintType>("full-colour");
   const [theme, setTheme] = useState<CharacterSheetTheme>("classic");
   const [sheets, setSheets] = useState<CharacterSheetSelection>(DEFAULT_CHARACTER_SHEETS);
@@ -94,6 +102,7 @@ export function CharacterPrintMode({
     async function load() {
       setLoading(true);
       setError(null);
+      setGovernanceSource(null);
       try {
         const res = await fetch(
           `/api/campaigns/${encodeURIComponent(campaignId)}/characters/${encodeURIComponent(characterId)}/builder`,
@@ -103,14 +112,32 @@ export function CharacterPrintMode({
         if (!res.ok) {
           throw new Error(data.error ?? "Failed to load character print data.");
         }
+        const normalizedPayload = {
+          ...data,
+          character: {
+            ...data.character,
+            builderData: normalizeBuilderData(data.character.builderData),
+          },
+        };
+        let nextGovernanceSource: RestrictionPrintProjectionGovernanceSource;
+        try {
+          const governanceResponse = await fetch(
+            `/api/campaigns/${encodeURIComponent(campaignId)}/characters/${encodeURIComponent(characterId)}/restriction-governance`,
+            { cache: "no-store" },
+          );
+          if (!governanceResponse.ok) {
+            throw new Error("Restriction governance could not be loaded.");
+          }
+          nextGovernanceSource = {
+            status: "AVAILABLE",
+            model: await governanceResponse.json() as CharacterRestrictionGovernanceReadModel,
+          };
+        } catch {
+          nextGovernanceSource = { status: "UNAVAILABLE", campaignId };
+        }
         if (!cancelled) {
-          setPayload({
-            ...data,
-            character: {
-              ...data.character,
-              builderData: normalizeBuilderData(data.character.builderData),
-            },
-          });
+          setPayload(normalizedPayload);
+          setGovernanceSource(nextGovernanceSource);
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -127,39 +154,49 @@ export function CharacterPrintMode({
     };
   }, [campaignId, characterId]);
 
+  const printProjection = useMemo(() => {
+    if (!payload || !governanceSource) return null;
+    return projectCharacterRestrictionPrintData({
+      builderData: payload.character.builderData,
+      governance: governanceSource,
+    });
+  }, [governanceSource, payload]);
+
+  const projectedBuilderData = printProjection?.builderData ?? null;
+
   const derivedStats = useMemo(() => {
-    if (!payload) return null;
+    if (!payload || !projectedBuilderData) return null;
     return buildCharacterDerivedCombatStats({
       level: payload.character.level,
-      builderData: payload.character.builderData,
+      builderData: projectedBuilderData,
       backpackItems: payload.backpackItems,
       protectionTuning,
     });
-  }, [payload, protectionTuning]);
+  }, [payload, projectedBuilderData, protectionTuning]);
 
   const offencePressureDie = useMemo(() => {
-    if (!payload || !derivedStats) return null;
-    const attack = Number(payload.character.builderData.attributes.Attack);
+    if (!payload || !projectedBuilderData || !derivedStats) return null;
+    const attack = Number(projectedBuilderData.attributes.Attack);
     const itemAttackModifier = Math.max(0, derivedStats.itemModifiers.attackModifier ?? 0);
     return combatDieForAttributeValue((Number.isFinite(attack) ? attack : 0) + itemAttackModifier);
-  }, [derivedStats, payload]);
+  }, [derivedStats, payload, projectedBuilderData]);
 
   const powerBudget = useMemo(() => {
-    if (!payload) return null;
+    if (!payload || !projectedBuilderData) return null;
     return summarizeCharacterPowers({
       level: payload.character.level,
-      powers: payload.character.builderData.powers,
+      powers: projectedBuilderData.powers,
       tuningSnapshot: payload.powerTuning,
       playerPowerSpendScalar: payload.characterBuilderTuning.playerPowerSpendScalar,
       offencePressureDie,
     });
-  }, [offencePressureDie, payload]);
+  }, [offencePressureDie, payload, projectedBuilderData]);
 
   const signatureMoveBudget = useMemo(() => {
-    if (!payload) return null;
+    if (!payload || !projectedBuilderData) return null;
     return summarizeCharacterPowers({
       level: payload.character.level,
-      powers: payload.character.builderData.signatureMove ? [payload.character.builderData.signatureMove] : [],
+      powers: projectedBuilderData.signatureMove ? [projectedBuilderData.signatureMove] : [],
       tuningSnapshot: payload.powerTuning,
       playerPowerSpendScalar: payload.characterBuilderTuning.playerPowerSpendScalar,
       powerPool: signatureMovePointPool(payload.character.level),
@@ -167,16 +204,16 @@ export function CharacterPrintMode({
       offencePressureMode: "reviewOnly",
       offencePressureDie,
     });
-  }, [offencePressureDie, payload]);
+  }, [offencePressureDie, payload, projectedBuilderData]);
 
   const traitSummary = useMemo(() => {
-    if (!payload) return null;
+    if (!payload || !projectedBuilderData) return null;
     return selectedTraitSummary(
-      payload.character.builderData.selectedTraitKeys,
+      projectedBuilderData.selectedTraitKeys,
       payload.character.level,
       payload.traitCatalog,
     );
-  }, [payload]);
+  }, [payload, projectedBuilderData]);
 
   const printFriendly = printType.endsWith("print-friendly");
   const darkPrestigeColourPrint =
@@ -198,7 +235,15 @@ export function CharacterPrintMode({
     );
   }
 
-  if (error || !payload || !derivedStats || !powerBudget || !traitSummary) {
+  if (
+    error ||
+    !payload ||
+    !printProjection ||
+    !projectedBuilderData ||
+    !derivedStats ||
+    !powerBudget ||
+    !traitSummary
+  ) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 px-4 py-8 md:px-6">
         <p className="rounded border border-red-900/60 bg-red-950/30 p-4 text-red-200">
@@ -301,12 +346,48 @@ export function CharacterPrintMode({
             Dark Prestige colour printing uses background colours. In Chrome&apos;s print dialog, enable Background graphics for the PDF/printout to match this preview.
           </p>
         ) : null}
+        <div
+          data-testid="restriction-print-projection-warning"
+          className={[
+            "mt-3 rounded border px-3 py-2 text-sm",
+            printProjection.governanceUnavailable
+              ? "border-red-900/70 bg-red-950/30 text-red-100"
+              : "border-amber-900/60 bg-amber-950/20 text-amber-100",
+          ].join(" ")}
+        >
+          <p className="font-medium">
+            Unapproved restricted content is omitted from the table-ready character sheets.
+          </p>
+          {printProjection.governanceUnavailable ? (
+            <p className="mt-1 text-xs text-red-200">
+              Restriction governance is unavailable. Restricted content was omitted because current approval could not be proven.
+            </p>
+          ) : null}
+          {printProjection.omitted.length > 0 ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+              {printProjection.omitted.map((entry) => (
+                <li key={`${entry.consumerType}:${entry.consumerId}`}>
+                  {RESTRICTION_PRINT_PROJECTION_CONSUMER_LABELS[entry.consumerType]}: {entry.consumerName} &mdash; {entry.reasonLabel}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       </section>
 
       <CharacterSheetPreview
         mode="print"
-        character={payload.character}
-        builderData={payload.character.builderData}
+        character={{
+          id: payload.character.id,
+          name: payload.character.name,
+          imageUrl: payload.character.imageUrl,
+          age: payload.character.age,
+          race: payload.character.race,
+          description: payload.character.description,
+          level: payload.character.level,
+          archivedAt: payload.character.archivedAt,
+        }}
+        builderData={projectedBuilderData}
         backpackItems={payload.backpackItems}
         derivedStats={derivedStats}
         powerBudget={powerBudget}

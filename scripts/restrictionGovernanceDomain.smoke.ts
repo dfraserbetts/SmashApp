@@ -357,11 +357,11 @@ const sheetSource = readFileSync(
   "app/campaign/[id]/characters/[characterId]/components/CharacterSheetPreview.tsx",
   "utf8",
 );
-check(printSource.includes("powers: payload.character.builderData.powers"), "Current print budget still receives raw Power builderData.");
-check(printSource.includes("payload.character.builderData.signatureMove ?"), "Current print budget still receives raw Signature Move builderData.");
-check(printSource.includes("builderData={payload.character.builderData}"), "CharacterSheetPreview still receives raw builderData.");
-check(printSource.includes("powerBudget={powerBudget}"), "CharacterSheetPreview still receives the raw-content Power budget.");
-check(sheetSource.includes("powerBudget.powers.map"), "PowerReferenceSheet still renders the supplied unprojected Power budget.");
-check(!printSource.includes("projectRestrictionPrintableContent"), "Phase 4A2 does not integrate print filtering prematurely.");
+check(printSource.includes("projectCharacterRestrictionPrintData"), "Print Mode now integrates the table-ready projection.");
+check(printSource.includes("powers: projectedBuilderData.powers"), "Current print budget receives projected Powers.");
+check(printSource.includes("projectedBuilderData.signatureMove ?"), "Current print budget receives the projected Signature Move.");
+check(printSource.includes("builderData={projectedBuilderData}"), "CharacterSheetPreview receives projected Builder data.");
+check(printSource.includes("powerBudget={powerBudget}"), "CharacterSheetPreview receives the projected-content Power budget.");
+check(sheetSource.includes("powerBudget.powers.map"), "PowerReferenceSheet renders the supplied projected Power budget.");
 
 console.log(`Restriction governance domain smoke passed (${checks} checks).`);
