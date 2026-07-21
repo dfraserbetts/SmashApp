@@ -32,8 +32,11 @@ import {
 } from "@/lib/config/combatTuningShared";
 import {
   aggregateAugmentDebuffPowerDelivery,
+  cancelSuccessDistributions,
   createMatchedReferenceResistDistribution,
+  createSuccessDistribution,
   evaluateAugmentDebuffPacket,
+  summarizeSuccessDistribution,
   type EconomicDuration,
   type IncarnateDieSides,
   type PacketDeliveryEvaluation,
@@ -2175,6 +2178,18 @@ type SemanticControlPackage = {
   resistibility: ControlPressureResistibility;
   resistGateCategory: CoreAttribute | null;
   reliabilityContribution: number;
+  reliabilityModel: "EXACT_MATCHED_REFERENCE" | "EXACT_UNRESISTED" | "CATEGORICAL_FALLBACK";
+  sourceAttribute: "Attack";
+  sourceDieSides: IncarnateDieSides | null;
+  diceCount: number;
+  sourceSuccessDistribution: number[];
+  resistSuccessDistribution: number[] | null;
+  appliedSuccessDistribution: number[];
+  applicationProbability: number;
+  expectedNetSuccesses: number;
+  expectedActiveTargetTurns: number;
+  perUseControlProxy: number;
+  encounterControlProxy: number;
   dependencyMode: string;
   linked: boolean;
   linkedContribution: number;
@@ -2300,6 +2315,95 @@ function controlPressureAvailability(cooldownTurns: number | null): {
   return { band: "LONG", contribution: Math.max(0.25, 0.55 - cooldownTurns * 0.05) };
 }
 
+export type LegacyControlDeliveryEvaluation = {
+  sourceAttribute: "Attack";
+  sourceDieSides: IncarnateDieSides;
+  diceCount: number;
+  sourceSuccessDistribution: number[];
+  resistSuccessDistribution: number[] | null;
+  appliedSuccessDistribution: number[];
+  reliabilityModel: "EXACT_MATCHED_REFERENCE" | "EXACT_UNRESISTED" | "CATEGORICAL_FALLBACK";
+  applicationProbability: number;
+  expectedNetSuccesses: number;
+  expectedActiveTargetTurns: number;
+  perUseControlProxy: number;
+  cooldownTurns: number | null;
+  availability: number;
+  encounterControlProxy: number;
+};
+
+export function computeLevel3LegacyControlDelivery(params: {
+  sourceDie: unknown;
+  diceCount: number;
+  resistibility: ControlPressureResistibility;
+  categoricalReliability: number;
+  durationTurns: number;
+  targetCount: number;
+  effectSeverity: number;
+  supportedStackImpact: number;
+  recurrenceContribution: number;
+  cooldownTurns: number | null;
+}): LegacyControlDeliveryEvaluation | null {
+  const sourceDieSides = newFormatDebuffSourceDieSides(params.sourceDie);
+  if (
+    sourceDieSides === null ||
+    !Number.isInteger(params.diceCount) ||
+    params.diceCount < 1 ||
+    params.diceCount > 20
+  ) {
+    return null;
+  }
+  const sourceSuccessDistribution = createSuccessDistribution({
+    dieSides: sourceDieSides,
+    diceCount: params.diceCount,
+  });
+  const resistSuccessDistribution =
+    params.resistibility === "RESISTED"
+      ? createMatchedReferenceResistDistribution()
+      : params.resistibility === "UNRESISTED"
+        ? [1]
+        : null;
+  const appliedSuccessDistribution = resistSuccessDistribution
+    ? cancelSuccessDistributions(sourceSuccessDistribution, resistSuccessDistribution)
+    : sourceSuccessDistribution.map((probability, successes) =>
+        successes === 0
+          ? probability +
+            (1 - params.categoricalReliability) * (1 - probability)
+          : probability * params.categoricalReliability,
+      );
+  const appliedSummary = summarizeSuccessDistribution(appliedSuccessDistribution);
+  const applicationProbability = appliedSummary.probabilityAtLeastOne;
+  const expectedActiveTargetTurns =
+    applicationProbability * params.durationTurns * params.targetCount;
+  const perUseControlProxy =
+    params.effectSeverity *
+    expectedActiveTargetTurns *
+    params.supportedStackImpact *
+    (1 + params.recurrenceContribution);
+  const availability = controlPressureAvailability(params.cooldownTurns).contribution;
+  return {
+    sourceAttribute: "Attack",
+    sourceDieSides,
+    diceCount: params.diceCount,
+    sourceSuccessDistribution,
+    resistSuccessDistribution,
+    appliedSuccessDistribution,
+    reliabilityModel:
+      params.resistibility === "RESISTED"
+        ? "EXACT_MATCHED_REFERENCE"
+        : params.resistibility === "UNRESISTED"
+          ? "EXACT_UNRESISTED"
+          : "CATEGORICAL_FALLBACK",
+    applicationProbability,
+    expectedNetSuccesses: appliedSummary.expectedSuccesses,
+    expectedActiveTargetTurns,
+    perUseControlProxy,
+    cooldownTurns: params.cooldownTurns,
+    availability,
+    encounterControlProxy: perUseControlProxy * availability,
+  };
+}
+
 function controlPressureFunctionalSignature(
   value: Omit<SemanticControlPackage, "functionalSignature" | "sourcePowerId" | "sourcePowerName" | "packetIndex">,
 ): string {
@@ -2313,6 +2417,9 @@ function controlPressureFunctionalSignature(
     value.recurrence ? "recurring" : "once",
     value.availabilityBand,
     value.resistibility,
+    value.sourceDieSides ?? "unknown-die",
+    value.diceCount,
+    value.applicationProbability.toFixed(12),
     value.dependencyMode,
   ].join("|");
 }
@@ -2389,7 +2496,7 @@ function createSemanticControlPackages(params: {
           runtimeSemanticMode = "movementDenied";
           effectSeverity = 2;
           supportedStackImpact = 1;
-          const warning = "Force no move uses categorical movement-denial severity; Dice Count and Potency do not add magnitude scaling.";
+          const warning = "Force no move uses categorical movement-denial severity; Potency does not add magnitude scaling, while Dice Count changes exact application reliability.";
           unsupportedAuthoringDistinctions.push(warning);
           unsupportedWarnings.push(`Power ${power.name} packet ${packet.packetIndex ?? packetOffset}: ${warning}`);
         } else {
@@ -2436,6 +2543,25 @@ function createSemanticControlPackages(params: {
         gateResult === "RESIST" ? "RESISTED" : gateResult === "NONE" ? "UNRESISTED" : "UNKNOWN";
       const resistGateCategory =
         resistibility === "RESISTED" ? (power.primaryDefenceGate?.resistAttribute ?? null) : null;
+      const diceCount = Math.trunc(Number(packet.diceCount ?? power.diceCount));
+      const delivery = computeLevel3LegacyControlDelivery({
+        sourceDie: params.monster.attackDie,
+        diceCount,
+        resistibility,
+        categoricalReliability: params.reliabilityValues[resistibility],
+        durationTurns: duration.durationTurns,
+        targetCount: targeting.targetCount,
+        effectSeverity,
+        supportedStackImpact,
+        recurrenceContribution: duration.recurrenceContribution,
+        cooldownTurns,
+      });
+      if (!delivery) {
+        unsupportedWarnings.push(
+          `Power ${power.name} packet ${packet.packetIndex ?? packetOffset} has no supported Level 3 source die/Dice Count distribution; omitted from Control Pressure.`,
+        );
+        continue;
+      }
       const dependencyMode =
         (packet.packetIndex ?? packet.sortOrder ?? packetOffset) <= 0
           ? "PRIMARY"
@@ -2459,7 +2585,19 @@ function createSemanticControlPackages(params: {
         availabilityContribution: availability.contribution,
         resistibility,
         resistGateCategory,
-        reliabilityContribution: params.reliabilityValues[resistibility],
+        reliabilityContribution: delivery.applicationProbability,
+        reliabilityModel: delivery.reliabilityModel,
+        sourceAttribute: delivery.sourceAttribute,
+        sourceDieSides: delivery.sourceDieSides,
+        diceCount: delivery.diceCount,
+        sourceSuccessDistribution: delivery.sourceSuccessDistribution,
+        resistSuccessDistribution: delivery.resistSuccessDistribution,
+        appliedSuccessDistribution: delivery.appliedSuccessDistribution,
+        applicationProbability: delivery.applicationProbability,
+        expectedNetSuccesses: delivery.expectedNetSuccesses,
+        expectedActiveTargetTurns: delivery.expectedActiveTargetTurns,
+        perUseControlProxy: delivery.perUseControlProxy,
+        encounterControlProxy: delivery.encounterControlProxy,
         dependencyMode,
         linked,
         linkedContribution: linked ? 1 : 0,
@@ -2546,6 +2684,86 @@ function getControlPressureBaselineComponents(
     actionEconomy: baseline.expectedActionsPerTurn,
     reliability: baseline.expectedReliability,
     linkedRelationships: baseline.expectedLinkedRelationships,
+  };
+}
+
+type LegacyControlDeliveryPackage = {
+  sourcePowerId: string | null;
+  sourcePowerName: string;
+  packetIndex: number;
+  diceCount: number;
+  applicationProbability: number;
+  expectedNetSuccesses: number;
+  expectedActiveTargetTurns: number;
+  perUseControlProxy: number;
+  overlapFactor: number;
+  overlapAdjustedPerUseProxy: number;
+  cooldownTurns: number | null;
+  availability: number;
+  encounterProxyBeforeCapacity: number;
+  encounterControlProxy: number;
+};
+
+function getLegacyControlDelivery(
+  packages: SemanticControlPackage[],
+  actionsPerTurn: number,
+  overlapHandling: Array<{ signature: string; factor: number }>,
+) {
+  const totalDemand = packages.reduce(
+    (sum, controlPackage) => sum + controlPackage.availabilityContribution,
+    0,
+  );
+  const capacity = packages.length > 0 ? Math.max(1, actionsPerTurn) : 0;
+  const allocationScale = totalDemand > 0 ? Math.min(1, capacity / totalDemand) : 1;
+  const deliveredPackages: LegacyControlDeliveryPackage[] = packages.map(
+    (controlPackage, index) => {
+      const overlapFactor = overlapHandling[index]?.factor ?? 1;
+      const overlapAdjustedPerUseProxy =
+        controlPackage.perUseControlProxy * overlapFactor;
+      const encounterProxyBeforeCapacity =
+        overlapAdjustedPerUseProxy * controlPackage.availabilityContribution;
+      return {
+        sourcePowerId: controlPackage.sourcePowerId,
+        sourcePowerName: controlPackage.sourcePowerName,
+        packetIndex: controlPackage.packetIndex,
+        diceCount: controlPackage.diceCount,
+        applicationProbability: controlPackage.applicationProbability,
+        expectedNetSuccesses: controlPackage.expectedNetSuccesses,
+        expectedActiveTargetTurns: controlPackage.expectedActiveTargetTurns,
+        perUseControlProxy: controlPackage.perUseControlProxy,
+        overlapFactor,
+        overlapAdjustedPerUseProxy,
+        cooldownTurns: controlPackage.cooldownTurns,
+        availability: controlPackage.availabilityContribution,
+        encounterProxyBeforeCapacity,
+        encounterControlProxy: encounterProxyBeforeCapacity * allocationScale,
+      };
+    },
+  );
+  return {
+    packages: deliveredPackages,
+    perUseControlProxy: deliveredPackages.reduce(
+      (sum, controlPackage) => sum + controlPackage.overlapAdjustedPerUseProxy,
+      0,
+    ),
+    encounterControlProxyBeforeCapacity: deliveredPackages.reduce(
+      (sum, controlPackage) => sum + controlPackage.encounterProxyBeforeCapacity,
+      0,
+    ),
+    encounterControlProxy: deliveredPackages.reduce(
+      (sum, controlPackage) => sum + controlPackage.encounterControlProxy,
+      0,
+    ),
+    totalDemand,
+    capacity,
+    allocationScale,
+  };
+}
+
+function getLegacyControlBaselineDelivery(baseline: ControlPressureBaselinePackage) {
+  return {
+    perUseControlProxy: baseline.expectedPerUseControlProxy,
+    encounterControlProxy: baseline.expectedEncounterControlProxy,
   };
 }
 
@@ -3114,6 +3332,11 @@ function buildControlPressureAxisBaselineModel(params: {
   });
   const actionsPerTurn = getPressureActionsPerTurn(params.monster);
   const actual = getControlPressureComponents(extraction.packages, actionsPerTurn);
+  const legacyControlDelivery = getLegacyControlDelivery(
+    extraction.packages,
+    actionsPerTurn,
+    actual.overlapHandling,
+  );
   const newFormatExtraction = createNewFormatDebuffControlPackages({
     monster: params.monster,
     powerContribution: params.powerContribution,
@@ -3142,10 +3365,27 @@ function buildControlPressureAxisBaselineModel(params: {
     duration: actual.values.duration,
     recurrence: actual.values.recurrence,
     cooldownAvailability: actual.values.availability,
+    legacyControlDelivery: {
+      sourceAttribute: "Attack",
+      actualSourceDie: params.monster.attackDie,
+      resistanceReference:
+        "Resisted legacy Control uses the current matched Level 3 reference distribution (3D8); unresisted Control still requires at least one source success.",
+      perUseControlProxy: legacyControlDelivery.perUseControlProxy,
+      encounterControlProxyBeforeCapacity:
+        legacyControlDelivery.encounterControlProxyBeforeCapacity,
+      encounterControlProxy: legacyControlDelivery.encounterControlProxy,
+      totalDemand: legacyControlDelivery.totalDemand,
+      actionCapacity: legacyControlDelivery.capacity,
+      allocationScale: legacyControlDelivery.allocationScale,
+      packages: legacyControlDelivery.packages,
+      cadenceTradeoffApplied:
+        legacyControlDelivery.encounterControlProxy + 1e-12 <
+        legacyControlDelivery.perUseControlProxy,
+    },
     actionEconomyContribution: actual.values.actionEconomy,
     resistibilityContribution: {
       value: actual.values.reliability,
-      policy: "Neutral gate policy: Fortitude, Intellect, Bravery, and other gate names receive identical value; only resisted, unresisted, or unknown status changes bounded reliability.",
+      policy: "Supported Level 3 legacy Control uses exact source and matched-reference resistance distributions. Gate attribute names remain neutral; unknown resistance retains the bounded categorical fallback.",
       reliabilityValues: tuning.reliabilityValues,
     },
     linkedPackageContribution: actual.values.linkedRelationships,
@@ -3184,9 +3424,15 @@ function buildControlPressureAxisBaselineModel(params: {
         const baselineComponents = getControlPressureBaselineComponents(baseline);
         const actualProxy = getControlPressureProxy(actual.values, tuning);
         const baselineProxy = getControlPressureProxy(baselineComponents, tuning);
-        const ratio = baselineProxy.proxy > 0 ? actualProxy.proxy / baselineProxy.proxy : 0;
+        const baselineDelivery = getLegacyControlBaselineDelivery(baseline);
+        const ratio = baselineDelivery.encounterControlProxy > 0
+          ? legacyControlDelivery.encounterControlProxy /
+            baselineDelivery.encounterControlProxy
+          : 0;
         const uncappedScore =
-          extraction.packages.length > 0 && actualProxy.proxy > 0 && ratio > 0
+          extraction.packages.length > 0 &&
+          legacyControlDelivery.encounterControlProxy > 0 &&
+          ratio > 0
             ? tuning.midpointScore + Math.log2(ratio) * tuning.logRatioScale
             : 0;
         const finalScore = clampRadarScore(uncappedScore);
@@ -3198,10 +3444,15 @@ function buildControlPressureAxisBaselineModel(params: {
           baselinePackageId: baseline.id,
           baselinePackage: baseline,
           baselineComponents,
+          baselineLegacyControlDelivery: baselineDelivery,
           weightedActualComponents: actualProxy.weightedComponents,
           weightedBaselineComponents: baselineProxy.weightedComponents,
-          rawActualControlPressureProxy: actualProxy.proxy,
-          rawBaselineControlPressureProxy: baselineProxy.proxy,
+          legacyComponentProxyDiagnostic: {
+            actual: actualProxy.proxy,
+            baseline: baselineProxy.proxy,
+          },
+          rawActualControlPressureProxy: legacyControlDelivery.encounterControlProxy,
+          rawBaselineControlPressureProxy: baselineDelivery.encounterControlProxy,
           ratioToBaseline: ratio,
           uncappedScore,
           finalScore,
@@ -5103,7 +5354,7 @@ export function computeMonsterOutcomes(
       OTHER: 0,
     } satisfies Record<LegacyNonPowerSynergySource["sourceType"], number>,
   );
-  const fallbackLegacySynergySources: LegacyNonPowerSynergySource[] = [
+  const fallbackLegacySynergySources = ([
     {
       sourceType: "TRAIT",
       name: "Other traits",
@@ -5133,7 +5384,7 @@ export function computeMonsterOutcomes(
         customLimitBreakAxisBonuses.synergy - suppliedLegacySynergyByType.LIMIT_BREAK,
       ),
     },
-  ].filter((source) => source.amount > 0);
+  ] satisfies LegacyNonPowerSynergySource[]).filter((source) => source.amount > 0);
   const semanticSynergyAxisModel = computeLevel3SemanticSynergy({
     monster,
     powers: opts?.powerContribution?.powers,

@@ -152,6 +152,13 @@ export function MonsterCalculatorPanel({
         .map(asRecord)
         .filter((source) => Number(source.amount) > 0)
     : [];
+  const controlPressureModel = asRecord(
+    profile?.debug?.controlPressureAxisBaselineModel,
+  );
+  const legacyControlDelivery = asRecord(controlPressureModel.legacyControlDelivery);
+  const legacyControlPackages = Array.isArray(legacyControlDelivery.packages)
+    ? legacyControlDelivery.packages.map(asRecord)
+    : [];
 
   return (
     <section className="sticky top-12 lg:top-0 z-20 max-h-[calc(100vh-3rem)] lg:max-h-screen overflow-y-auto rounded border border-zinc-800 bg-zinc-900/95 p-4 space-y-3 shadow">
@@ -266,6 +273,43 @@ export function MonsterCalculatorPanel({
                       `${String(source.name)} (${formatDecimal(Number(source.amount))})`
                     ).join(", ")}.
                   </p>
+                </div>
+              )}
+
+              {legacyControlPackages.length > 0 && (
+                <div className="rounded border border-sky-800/70 bg-sky-950/25 p-2 text-xs text-sky-100">
+                  <p className="font-medium">Control delivery: per use versus encounter</p>
+                  <div className="mt-2 space-y-2">
+                    {legacyControlPackages.map((controlPackage, index) => (
+                      <div
+                        key={`${String(controlPackage.sourcePowerId)}:${String(controlPackage.packetIndex)}:${index}`}
+                        className="rounded border border-sky-900/70 bg-zinc-950/30 p-2"
+                      >
+                        <p className="text-sky-100">
+                          {String(controlPackage.sourcePowerName)}
+                        </p>
+                        <p className="mt-1 text-sky-200/80">
+                          Application {formatDecimal(Number(controlPackage.applicationProbability) * 100)}%
+                          {" · "}Expected net successes {formatDecimal(Number(controlPackage.expectedNetSuccesses))}
+                          {" · "}Active target-turns {formatDecimal(Number(controlPackage.expectedActiveTargetTurns))}
+                        </p>
+                        <p className="mt-1 text-sky-200/80">
+                          Per use {formatDecimal(Number(controlPackage.perUseControlProxy))}
+                          {" · "}Cooldown {String(controlPackage.cooldownTurns)}
+                          {" · "}Availability {formatDecimal(Number(controlPackage.availability))}
+                          {" · "}Encounter {formatDecimal(Number(controlPackage.encounterControlProxy))}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  {legacyControlDelivery.cadenceTradeoffApplied === true && (
+                    <p className="mt-2 text-amber-200">
+                      The encounter contribution is lower than per-use strength
+                      because authoritative cooldown cadence reduces availability.
+                      Increasing Dice Count can strengthen each use while lowering
+                      encounter contribution when it crosses a cooldown threshold.
+                    </p>
+                  )}
                 </div>
               )}
 

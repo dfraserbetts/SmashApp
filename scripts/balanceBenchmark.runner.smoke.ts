@@ -180,13 +180,14 @@ for (const requiredId of [
   "automatic-expected-targets-smoke",
   "semantic-authoring-feedback-smoke",
   "semantic-synergy-level-3-smoke",
+  "legacy-control-reliability-level-3-smoke",
   "self-attack-threat-level-3-smoke",
   "self-guard-survivability-level-3-smoke",
   "self-bravery-survivability-level-3-smoke",
 ]) {
   assert.ok(quick.selected.some((suite) => suite.id === requiredId), `quick mode omitted ${requiredId}`);
 }
-assert.equal(quick.selected.length, 14, "quick mode must contain the fourteen available baseline suites.");
+assert.equal(quick.selected.length, 15, "quick mode must contain the fifteen available baseline suites.");
 for (const reconciliationId of reconciliationIds) {
   assert.equal(
     quick.selected.some((suite) => suite.id === reconciliationId),
@@ -427,6 +428,12 @@ const semanticSynergySuite = BALANCE_BENCHMARK_REGISTRY.find(
 assert.equal(semanticSynergySuite?.compatibility, "AVAILABLE");
 assert.equal(semanticSynergySuite?.failureSeverity, "BLOCKER");
 assert.deepEqual(semanticSynergySuite?.modes, ["quick", "full", "changed"]);
+const legacyControlReliabilitySuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "legacy-control-reliability-level-3-smoke",
+);
+assert.equal(legacyControlReliabilitySuite?.compatibility, "AVAILABLE");
+assert.equal(legacyControlReliabilitySuite?.failureSeverity, "BLOCKER");
+assert.deepEqual(legacyControlReliabilitySuite?.modes, ["quick", "full", "changed"]);
 const selfAttackThreatSuite = BALANCE_BENCHMARK_REGISTRY.find(
   (suite) => suite.id === "self-attack-threat-level-3-smoke",
 );

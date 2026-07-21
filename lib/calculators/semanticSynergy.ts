@@ -240,7 +240,8 @@ export type SemanticSynergyResult = {
     sameAttributeClamp: number;
     linkedApplication: "INHERIT_TARGET_LOCAL_PRIMARY";
     sameSourceReapplication: "MAX_AND_REFRESH";
-    legacyCombination: "SEMANTIC_ONLY_OR_LEGACY_ONLY;_MIXED_FAILS_CLOSED";
+    legacyCombination:
+      "SEMANTIC_POWER_AUTHORITY_EXCLUDES_NON_POWER_LEGACY;_MIXED_POWER_MODELS_FAIL_CLOSED";
   };
   adapterWarnings: string[];
 };

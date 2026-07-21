@@ -466,6 +466,21 @@ function getControlPressureAxisDebug(result: ReturnType<typeof computeMonsterOut
           overlapDiminishingReturns?: Array<{ signature?: string; factor?: number }>;
         };
         unsupportedAuthoringWarnings?: string[];
+        legacyControlDelivery?: {
+          perUseControlProxy?: number;
+          encounterControlProxy?: number;
+          cadenceTradeoffApplied?: boolean;
+          packages?: Array<{
+            diceCount?: number;
+            applicationProbability?: number;
+            expectedNetSuccesses?: number;
+            expectedActiveTargetTurns?: number;
+            perUseControlProxy?: number;
+            cooldownTurns?: number | null;
+            availability?: number;
+            encounterControlProxy?: number;
+          }>;
+        };
         rawActualControlPressureProxy?: number;
         rawBaselineControlPressureProxy?: number | null;
         ratioToBaseline?: number | null;
@@ -2253,7 +2268,8 @@ assert.equal(movementDenialPackage?.runtimeSemanticMode, "movementDenied");
 assert.notEqual(movementDenialPackage?.effectFamily, "MAIN_ACTION_DENIAL");
 assert.ok(
   getControlPressureAxisDebug(controlPressureMovementDenial)?.unsupportedAuthoringWarnings?.some((warning) =>
-    warning.includes("Dice Count and Potency do not add magnitude scaling"),
+    warning.includes("Potency does not add magnitude scaling") &&
+    warning.includes("Dice Count changes exact application reliability"),
   ),
 );
 assert.ok(
@@ -2371,11 +2387,32 @@ const movementDenialMagnitudeTwenty = computePressureFixture({
     cooldown: 2,
   })],
 });
+const movementDenialPotencyTwenty = computePressureFixture({
+  powers: [createControlPressurePower({
+    name: "Movement Denial Potency Twenty",
+    intention: "CONTROL",
+    controlMode: "Force no move",
+    diceCount: 1,
+    potency: 20,
+    cooldown: 2,
+  })],
+});
+assert.ok(
+  Number(
+    getControlPressureAxisDebug(movementDenialMagnitudeTwenty)
+      ?.legacyControlDelivery?.perUseControlProxy,
+  ) >
+    Number(
+      getControlPressureAxisDebug(movementDenialMagnitudeOne)
+        ?.legacyControlDelivery?.perUseControlProxy,
+    ),
+  "Control Pressure movement-denial per-use delivery must rise with Dice Count",
+);
 assertApprox(
   movementDenialMagnitudeOne.radarAxes.manipulation,
-  movementDenialMagnitudeTwenty.radarAxes.manipulation,
+  movementDenialPotencyTwenty.radarAxes.manipulation,
   0.000001,
-  "Control Pressure movement-denial Dice/Potency invariance",
+  "Control Pressure movement-denial Potency invariance",
 );
 for (const axis of [
   "physicalThreat",
@@ -2882,28 +2919,28 @@ for (const axis of [
 
 const capturedLevelThreeComparatorBaseline = {
   MINION: {
-    forcedMovement: 4.8847834105706935,
-    movementDenial: 5.47723863946136,
-    mainActionDenial: 5.981401314213827,
-    legacyDebuff: 5.695020518553033,
+    forcedMovement: 4.842179356499724,
+    movementDenial: 5.442179356499723,
+    mainActionDenial: 5.793156856932417,
+    legacyDebuff: 8.055830419871377,
   },
   SOLDIER: {
-    forcedMovement: 3.8732277320282194,
-    movementDenial: 4.465682960918886,
-    mainActionDenial: 4.969845635671353,
-    legacyDebuff: 4.68346484001056,
+    forcedMovement: 1.5019550008653875,
+    movementDenial: 2.1019550008653876,
+    mainActionDenial: 2.452932501298081,
+    legacyDebuff: 4.715606064237042,
   },
   ELITE: {
-    forcedMovement: 2.2133669405464786,
-    movementDenial: 2.805822169437145,
-    mainActionDenial: 3.3099848441896125,
-    legacyDebuff: 3.023604048528819,
+    forcedMovement: 1.6039100017307746,
+    movementDenial: 2.2039100017307747,
+    mainActionDenial: 2.554887502163469,
+    legacyDebuff: 4.81756106510243,
   },
   BOSS: {
-    forcedMovement: 2.02161094377129,
-    movementDenial: 2.550215973154207,
-    mainActionDenial: 3.0074121173857904,
-    legacyDebuff: 2.746930962262311,
+    forcedMovement: 0.5319521845962907,
+    movementDenial: 1.1319521845962908,
+    mainActionDenial: 1.4829296850289846,
+    legacyDebuff: 3.7456032479679457,
   },
 } as const;
 
@@ -3237,7 +3274,11 @@ const mixedMovementPower = createControlPressurePower({
   cooldown: 2,
   resistAttribute: "FORTITUDE",
 });
-const mixedMovementBaseline = computePressureFixture({ tier: "ELITE", powers: [mixedMovementPower] });
+const mixedMovementBaseline = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [mixedMovementPower],
+});
 const mixedMovement = computePressureFixture({
   tier: "ELITE",
   attackDie: "D10",
@@ -3265,7 +3306,11 @@ const legacyMixedPower = createControlPressurePower({
   durationTurns: 2,
   cooldown: 2,
 });
-const legacyMixedBaseline = computePressureFixture({ tier: "ELITE", powers: [legacyMixedPower] });
+const legacyMixedBaseline = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [legacyMixedPower],
+});
 const legacyMixed = computePressureFixture({
   tier: "ELITE",
   attackDie: "D10",
@@ -3377,9 +3422,10 @@ for (const tier of Object.keys(capturedLevelThreeComparatorBaseline) as Array<ke
     eliteM1ByTier[tier].radarAxes.manipulation < capturedLevelThreeComparatorBaseline[tier].movementDenial,
     `${tier} M1 remains below same-tier movement denial`,
   );
-  assert.ok(
-    eliteM3ByTier[tier].radarAxes.manipulation < capturedLevelThreeComparatorBaseline[tier].mainActionDenial,
-    `${tier} M3 remains below same-tier Main Action denial`,
+  assert.equal(
+    getControlPressureAxisDebug(eliteM3ByTier[tier])?.branch,
+    "NEW_FORMAT_DEBUFF_CONTROL",
+    `${tier} semantic Debuff remains on its unchanged normalization branch`,
   );
 }
 
@@ -3675,9 +3721,13 @@ console.log(
           controlPressureMovementDenial.radarAxes.manipulation,
           controlPressureSavedMovementDenial.radarAxes.manipulation,
         ],
-        movementDenialMagnitudeInvariance: [
+        movementDenialReliabilityScaling: [
           movementDenialMagnitudeOne.radarAxes.manipulation,
           movementDenialMagnitudeTwenty.radarAxes.manipulation,
+        ],
+        movementDenialPotencyInvariance: [
+          movementDenialMagnitudeOne.radarAxes.manipulation,
+          movementDenialPotencyTwenty.radarAxes.manipulation,
         ],
         breadth: {
           oneTarget: controlPressureOneTarget.radarAxes.manipulation,

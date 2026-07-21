@@ -66,6 +66,8 @@ export type ControlPressureBaselinePackage = {
   expectedReliability: number;
   expectedLinkedRelationships: number;
   expectedActionsPerTurn: number;
+  expectedPerUseControlProxy: number;
+  expectedEncounterControlProxy: number;
 };
 
 export type NewFormatDebuffControlTierBaseline = {
@@ -501,7 +503,10 @@ export const calculatorConfig: CalculatorConfig = {
   controlPressureAxisTuning: {
     calibratedLevel: 3,
     midpointScore: 5,
-    logRatioScale: 2.35,
+    // Exact delivery ratios span farther than the former bounded categorical
+    // component proxy. This preserves the same baseline-relative log family
+    // while keeping the weakest supported one-die Level 3 package above zero.
+    logRatioScale: 0.6,
     nonCalibratedFallbackMode: "LEGACY_COST_COUPLED_MANIPULATION_CURVE",
     reliabilityValues: {
       RESISTED: 0.85,
@@ -577,6 +582,8 @@ export const calculatorConfig: CalculatorConfig = {
         expectedReliability: 0.85,
         expectedLinkedRelationships: 0,
         expectedActionsPerTurn: 1,
+        expectedPerUseControlProxy: 0.032958984375,
+        expectedEncounterControlProxy: 0.0296630859375,
       },
       {
         id: "l3-soldier-control-pressure-standard-v1",
@@ -595,6 +602,8 @@ export const calculatorConfig: CalculatorConfig = {
         expectedReliability: 1,
         expectedLinkedRelationships: 0,
         expectedActionsPerTurn: 1,
+        expectedPerUseControlProxy: 1.875,
+        expectedEncounterControlProxy: 1.40625,
       },
       {
         id: "l3-elite-control-pressure-standard-v1",
@@ -613,6 +622,8 @@ export const calculatorConfig: CalculatorConfig = {
         expectedReliability: 2,
         expectedLinkedRelationships: 0,
         expectedActionsPerTurn: 1,
+        expectedPerUseControlProxy: 2.5,
+        expectedEncounterControlProxy: 1.25,
       },
       {
         id: "l3-legendary-elite-control-pressure-standard-v1",
@@ -631,6 +642,8 @@ export const calculatorConfig: CalculatorConfig = {
         expectedReliability: 2,
         expectedLinkedRelationships: 0,
         expectedActionsPerTurn: 1,
+        expectedPerUseControlProxy: 3.125,
+        expectedEncounterControlProxy: 1.597222222222222,
       },
       {
         id: "l3-boss-control-pressure-standard-v1",
@@ -649,6 +662,8 @@ export const calculatorConfig: CalculatorConfig = {
         expectedReliability: 2,
         expectedLinkedRelationships: 0,
         expectedActionsPerTurn: 2,
+        expectedPerUseControlProxy: 5,
+        expectedEncounterControlProxy: 4.3125,
       },
       {
         id: "l3-legendary-boss-control-pressure-standard-v1",
@@ -667,6 +682,8 @@ export const calculatorConfig: CalculatorConfig = {
         expectedReliability: 3,
         expectedLinkedRelationships: 0,
         expectedActionsPerTurn: 2,
+        expectedPerUseControlProxy: 20,
+        expectedEncounterControlProxy: 13.823529411764708,
       },
     ],
   },

@@ -256,6 +256,28 @@ function summarizeSemanticPackage(value: unknown) {
       gateCategory: controlPackage.resistGateCategory ?? null,
       contribution: round(asNumber(controlPackage.reliabilityContribution)),
     },
+    exactDelivery: {
+      reliabilityModel: String(controlPackage.reliabilityModel ?? "UNKNOWN"),
+      sourceAttribute: String(controlPackage.sourceAttribute ?? "unknown"),
+      sourceDieSides: asNullableNumber(controlPackage.sourceDieSides),
+      diceCount: asNumber(controlPackage.diceCount),
+      sourceSuccessDistribution: Array.isArray(controlPackage.sourceSuccessDistribution)
+        ? controlPackage.sourceSuccessDistribution
+        : [],
+      resistSuccessDistribution: Array.isArray(controlPackage.resistSuccessDistribution)
+        ? controlPackage.resistSuccessDistribution
+        : null,
+      appliedSuccessDistribution: Array.isArray(controlPackage.appliedSuccessDistribution)
+        ? controlPackage.appliedSuccessDistribution
+        : [],
+      applicationProbability: round(asNumber(controlPackage.applicationProbability)),
+      expectedNetSuccesses: round(asNumber(controlPackage.expectedNetSuccesses)),
+      expectedActiveTargetTurns: round(
+        asNumber(controlPackage.expectedActiveTargetTurns),
+      ),
+      perUseControlProxy: round(asNumber(controlPackage.perUseControlProxy)),
+      encounterControlProxy: round(asNumber(controlPackage.encounterControlProxy)),
+    },
     linkedPackage: {
       linked: Boolean(controlPackage.linked),
       dependencyMode: String(controlPackage.dependencyMode ?? "UNKNOWN"),
@@ -505,6 +527,10 @@ function summarizeMonster(
         duration: round(asNumber(controlPressureModel.duration)),
         recurrence: round(asNumber(controlPressureModel.recurrence)),
         cooldownAvailability: round(asNumber(controlPressureModel.cooldownAvailability)),
+        legacyControlDelivery: asRecord(controlPressureModel.legacyControlDelivery),
+        baselineLegacyControlDelivery: asRecord(
+          controlPressureModel.baselineLegacyControlDelivery,
+        ),
         actionEconomyContribution: round(
           asNumber(controlPressureModel.actionEconomyContribution),
         ),

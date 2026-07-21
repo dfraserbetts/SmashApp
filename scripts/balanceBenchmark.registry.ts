@@ -738,6 +738,31 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     baselinePolicy: structuredCommand("The command self-validates saved/editor parity, movement-denial classification, matched severity ordering, and active cooldown authority."),
     notes: ["Read-only persisted and synthetic evidence; unresolved cooldown authority or failed acceptance exits nonzero."],
   }),
+  tsxSuite({
+    id: "legacy-control-reliability-level-3-smoke",
+    title: "Level 3 legacy Control reliability smoke",
+    family: "Control Pressure reconciliation",
+    description:
+      "Verify exact legacy Control application, per-use monotonicity, and authoritative cadence trade-offs.",
+    compatibility: "AVAILABLE",
+    modes: ["quick", "full", "changed"],
+    script: "scripts/legacyControlReliabilityLevel3.smoke.ts",
+    deterministicSeeds: [],
+    mutationSafety: syntheticReadOnly,
+    timeoutMs: 120_000,
+    changedPathPatterns: [
+      "scripts/legacyControlReliabilityLevel3.smoke.ts",
+      "app/summoning-circle/components/MonsterCalculatorPanel.tsx",
+      ...outcomeDependencyPatterns,
+      ...powerDependencyPatterns,
+    ],
+    failureSeverity: "BLOCKER",
+    supportsJson: false,
+    baselinePolicy: selfAsserting(
+      "The focused smoke owns the exact Level 3 legacy Control delivery and cadence invariants.",
+    ),
+    notes: ["Synthetic and read-only; performs no database or repository writes."],
+  }),
   ...[
     ["atomic-attack-cost-grid", "Atomic attack cost grid", "scripts/balanceAudit.atomicAttackCostGrid.ts"],
     ["control-debuff-cost-grid", "Control/Debuff atomic cost grid", "scripts/balanceAudit.controlDebuffAtomicCostGrid.ts"],
