@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
+import { MonsterBlockCard } from "../app/summoning-circle/components/MonsterBlockCard";
+import { resolvePrintMonsterCooldownAuthorities } from "../app/summoning-circle/components/SummoningCirclePrintMode";
 import { calculatorConfig } from "../lib/calculators/calculatorConfig";
 import { computeMonsterOutcomes } from "../lib/calculators/monsterOutcomeCalculator";
 import { DEFAULT_POWER_TUNING_VALUES, type PowerTuningSnapshot } from "../lib/config/powerTuningShared";
@@ -206,6 +210,16 @@ assert.equal(calculatorPowerDebug?.authorityTuningSetId, activeTuning.setId);
 assert.equal(calculatorPowerDebug?.authorityStoredCooldownTurns, 1);
 assert.equal(calculatorPowerDebug?.authorityMismatch, true);
 assert.equal(calculatorPowerDebug?.unresolvedError, null);
+
+const printMonster = resolvePrintMonsterCooldownAuthorities(
+  { ...calculatorMonster(), powers: [suddenLeap] },
+  activeTuning,
+);
+const printMarkup = renderToStaticMarkup(
+  createElement(MonsterBlockCard, { monster: printMonster, isPrint: true }),
+);
+assert.match(printMarkup, /Cooldown: 2/);
+assert.doesNotMatch(printMarkup, /Cooldown: Unresolved/);
 
 const activeFixtureValues = activePowerTuningFixture.values as Record<string, number>;
 for (const [bpv, expectedCooldown] of [

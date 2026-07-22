@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
+import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
 import type { MonsterSummary, MonsterUpsertInput } from "@/lib/summoning/types";
+import {
+  attachPowerCooldownAuthority,
+  resolvePowerCooldownAuthority,
+} from "@/lib/summoning/resolvePowerCooldownAuthority";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 import { MonsterBlockCard, type WeaponProjection } from "@/app/summoning-circle/components/MonsterBlockCard";
+import { usePowerTuning } from "@/app/summoning-circle/components/usePowerTuning";
 import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
 import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
 
@@ -38,6 +44,26 @@ const PAGE_BREAK_STYLE: CSSProperties = {
   pageBreakAfter: "always",
 };
 
+export function resolvePrintMonsterCooldownAuthorities(
+  monster: MonsterUpsertInput,
+  tuningSnapshot: PowerTuningSnapshot | null,
+): MonsterUpsertInput {
+  return {
+    ...monster,
+    powers: monster.powers.map((power) =>
+      attachPowerCooldownAuthority(
+        power,
+        resolvePowerCooldownAuthority({
+          power,
+          mode: "ACTIVE_CURRENT_BALANCE",
+          tuningSnapshot,
+          context: { level: monster.level, tier: monster.tier },
+        }),
+      ),
+    ),
+  };
+}
+
 export function SummoningCirclePrintMode({ campaignId }: Props) {
   const [monsters, setMonsters] = useState<MonsterSummary[]>([]);
   const [weapons, setWeapons] = useState<WeaponProjection[]>([]);
@@ -50,6 +76,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
   const [isPrinting, setIsPrinting] = useState(false);
   const printOnlyRef = useRef<HTMLDivElement | null>(null);
   const protectionTuning = useProtectionTuning();
+  const powerTuning = usePowerTuning();
 
   const loadedIdsRef = useRef<Set<string>>(new Set());
   const inFlightIdsRef = useRef<Set<string>>(new Set());
@@ -163,6 +190,21 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
       .map((monster) => detailsById[monster.id])
       .filter((monster): monster is MonsterUpsertInput => !!monster);
   }, [detailsById, monsters, selectedIds]);
+  const printableMonsters = useMemo(
+    () =>
+      selectedMonsters.map((monster) =>
+        resolvePrintMonsterCooldownAuthorities(monster, powerTuning.snapshot),
+      ),
+    [powerTuning.snapshot, selectedMonsters],
+  );
+  const hasUnresolvedPrintCooldowns = printableMonsters.some((monster) =>
+    monster.powers.some((power) => !power.cooldownAuthority),
+  );
+  const printCooldownsReady = !powerTuning.loading && !hasUnresolvedPrintCooldowns;
+  const readyPrintableMonsters = useMemo(
+    () => (printCooldownsReady ? printableMonsters : []),
+    [printCooldownsReady, printableMonsters],
+  );
   const basePrintLayout = getBasePrintLayout(printLayout);
   const darkPrestigeLayout = isDarkPrestigeLayout(printLayout);
   const compactOverflowWarnings = useMemo(() => {
@@ -189,8 +231,8 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
     scale: previewScale,
     scaledHeight: previewHeight,
   } = useScaledPreview({
-    enabled: !isPrinting && selectedMonsters.length > 0,
-    contentKey: `${selectedMonsters.length}-${printLayout}`,
+    enabled: !isPrinting && printableMonsters.length > 0 && printCooldownsReady,
+    contentKey: `${printableMonsters.length}-${printLayout}-${powerTuning.snapshot?.setId ?? "unresolved"}`,
   });
 
   // SC_PRINT_FREEZE_PREVIEW: keep the on-screen preview stable while the print dialog is open
@@ -248,7 +290,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
 
   const printablePages = useMemo(
     () =>
-      selectedMonsters.map((monster, idx) => {
+      readyPrintableMonsters.map((monster, idx) => {
         const pageClassName = [
           "sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl",
           darkPrestigeLayout ? "sc-print-page--dark-prestige" : "",
@@ -261,7 +303,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
             <article
               key={`${monster.name ?? "monster"}-${idx}`}
               className={pageClassName}
-              style={idx === selectedMonsters.length - 1 ? LAST_PRINT_PAGE_STYLE : PAGE_BREAK_STYLE}
+              style={idx === readyPrintableMonsters.length - 1 ? LAST_PRINT_PAGE_STYLE : PAGE_BREAK_STYLE}
             >
               <div className="sc-print-card-wrap">
                 <MonsterBlockCard
@@ -307,7 +349,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
           </div>
         );
       }),
-    [basePrintLayout, darkPrestigeLayout, printLayout, protectionTuning, selectedMonsters, weaponById],
+    [basePrintLayout, darkPrestigeLayout, printLayout, protectionTuning, readyPrintableMonsters, weaponById],
   );
 
   return (
@@ -342,7 +384,11 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
               <button
                 type="button"
                 onClick={triggerPrint}
-                disabled={selectedIds.length === 0 || selectedMonsters.length !== selectedIds.length}
+                disabled={
+                  selectedIds.length === 0 ||
+                  selectedMonsters.length !== selectedIds.length ||
+                  !printCooldownsReady
+                }
                 className="rounded border border-zinc-700 bg-zinc-100 px-3 py-2 text-sm text-zinc-900 disabled:opacity-50"
               >
                 Print
@@ -351,6 +397,14 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
           </div>
 
           {error && <p className="text-sm text-red-300">{error}</p>}
+          {selectedMonsters.length > 0 && powerTuning.loading && (
+            <p className="text-sm text-zinc-400">Loading authoritative Power cooldowns...</p>
+          )}
+          {selectedMonsters.length > 0 && !powerTuning.loading && hasUnresolvedPrintCooldowns && (
+            <p className="text-sm text-red-300">
+              Print Mode could not resolve one or more Power cooldowns from the active tuning set.
+            </p>
+          )}
           {compactOverflowWarnings.length > 0 && (
             <div className="rounded border border-amber-700 bg-amber-950/30 p-3 text-sm text-amber-200">
               <p className="font-medium">Heads up</p>
