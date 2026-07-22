@@ -25,6 +25,7 @@ type RunPayload = {
     id: string;
     name: string;
     level: number;
+    quantity: number;
     actionCount: number;
     actions: ActionSummary[];
   }>;
@@ -351,7 +352,7 @@ function toggleNumberSelection(current: number[], value: number): number[] {
     : [...current, value].sort((a, b) => a - b);
 }
 
-function clampMonsterQuantity(value: unknown): number {
+function clampCombatantQuantity(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) return 1;
   return Math.max(1, Math.min(30, Math.trunc(parsed)));
@@ -482,6 +483,7 @@ export default function CombatLabPage() {
   const [campaignId, setCampaignId] = useState("");
   const [roster, setRoster] = useState<RosterPayload | null>(null);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
+  const [characterQuantities, setCharacterQuantities] = useState<Record<string, number>>({});
   const [selectedMonsterIds, setSelectedMonsterIds] = useState<string[]>([]);
   const [monsterQuantities, setMonsterQuantities] = useState<Record<string, number>>({});
   const [selectedMonsterLevels, setSelectedMonsterLevels] = useState<number[]>([]);
@@ -516,6 +518,7 @@ export default function CombatLabPage() {
     setRoster(null);
     setResult(null);
     setSelectedCharacterIds([]);
+    setCharacterQuantities({});
     setSelectedMonsterIds([]);
     setMonsterQuantities({});
     setSelectedMonsterLevels([]);
@@ -527,6 +530,9 @@ export default function CombatLabPage() {
       const data = await readJson<RosterPayload>(res);
       setRoster(data);
       setSelectedCharacterIds(data.characters.slice(0, 4).map((character) => character.id));
+      setCharacterQuantities(
+        Object.fromEntries(data.characters.map((character) => [character.id, 1])),
+      );
       setSelectedMonsterIds(data.monsters.slice(0, 1).map((monster) => monster.id));
       setMonsterQuantities(
         Object.fromEntries(data.monsters.map((monster) => [monster.id, 1])),
@@ -548,10 +554,13 @@ export default function CombatLabPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           campaignId,
-          characterIds: selectedCharacterIds,
+          characters: selectedCharacterIds.map((characterId) => ({
+            characterId,
+            quantity: clampCombatantQuantity(characterQuantities[characterId] ?? 1),
+          })),
           monsters: selectedMonsterIds.map((monsterId) => ({
             monsterId,
-            quantity: clampMonsterQuantity(monsterQuantities[monsterId] ?? 1),
+            quantity: clampCombatantQuantity(monsterQuantities[monsterId] ?? 1),
           })),
           runs,
           turnOrder,
@@ -583,10 +592,19 @@ export default function CombatLabPage() {
   const selectedMonsterInstanceCount = useMemo(
     () =>
       selectedMonsterIds.reduce(
-        (sum, monsterId) => sum + clampMonsterQuantity(monsterQuantities[monsterId] ?? 1),
+        (sum, monsterId) => sum + clampCombatantQuantity(monsterQuantities[monsterId] ?? 1),
         0,
       ),
     [monsterQuantities, selectedMonsterIds],
+  );
+
+  const selectedCharacterInstanceCount = useMemo(
+    () =>
+      selectedCharacterIds.reduce(
+        (sum, characterId) => sum + clampCombatantQuantity(characterQuantities[characterId] ?? 1),
+        0,
+      ),
+    [characterQuantities, selectedCharacterIds],
   );
 
   const filteredMonsters = useMemo(() => {
@@ -672,26 +690,89 @@ export default function CombatLabPage() {
 
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="rounded border border-zinc-800 bg-zinc-900/30 p-4">
-            <h2 className="mb-3 text-lg font-semibold">Player Side: Campaign Characters</h2>
+            <div className="mb-3">
+              <h2 className="text-lg font-semibold">Player Side: Campaign Characters</h2>
+              <p className="text-xs text-zinc-500">Selected instances {selectedCharacterInstanceCount}</p>
+            </div>
             {!roster || roster.characters.length === 0 ? (
               <p className="text-sm text-zinc-500">No campaign characters loaded.</p>
             ) : (
               <div className="space-y-2">
-                {roster.characters.map((character) => (
-                  <label key={character.id} className="flex gap-3 rounded border border-zinc-800 bg-zinc-950 p-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedCharacterIds.includes(character.id)}
-                      onChange={() => setSelectedCharacterIds((current) => toggleSelection(current, character.id))}
-                    />
-                    <span>
-                      <span className="block font-medium">{character.name}</span>
-                      <span className="text-xs text-zinc-400">
-                        Level {character.level} | powers {character.powerCount} | id {character.id}
-                      </span>
-                    </span>
-                  </label>
-                ))}
+                {roster.characters.map((character) => {
+                  const selected = selectedCharacterIds.includes(character.id);
+                  const quantity = clampCombatantQuantity(characterQuantities[character.id] ?? 1);
+                  return (
+                    <div
+                      key={character.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded border border-zinc-800 bg-zinc-950 p-3"
+                    >
+                      <label className="flex min-w-0 flex-1 gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => {
+                            setSelectedCharacterIds((current) => toggleSelection(current, character.id));
+                            setCharacterQuantities((current) => ({
+                              ...current,
+                              [character.id]: clampCombatantQuantity(current[character.id] ?? 1),
+                            }));
+                          }}
+                        />
+                        <span className="min-w-0">
+                          <span className="block font-medium">
+                            {character.name}
+                            {selected ? ` x${quantity}` : ""}
+                          </span>
+                          <span className="text-xs text-zinc-400">
+                            Level {character.level} | powers {character.powerCount} | id {character.id}
+                          </span>
+                        </span>
+                      </label>
+                      <div className="flex items-center gap-1" aria-label={`${character.name} quantity`}>
+                        <button
+                          type="button"
+                          disabled={!selected}
+                          onClick={() =>
+                            setCharacterQuantities((current) => ({
+                              ...current,
+                              [character.id]: clampCombatantQuantity(quantity - 1),
+                            }))
+                          }
+                          className="h-8 w-8 rounded border border-zinc-700 text-sm hover:bg-zinc-800 disabled:opacity-40"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          max={30}
+                          disabled={!selected}
+                          value={quantity}
+                          onChange={(event) =>
+                            setCharacterQuantities((current) => ({
+                              ...current,
+                              [character.id]: clampCombatantQuantity(event.target.value),
+                            }))
+                          }
+                          className="h-8 w-16 rounded border border-zinc-700 bg-zinc-950 px-2 text-center text-sm disabled:opacity-40"
+                        />
+                        <button
+                          type="button"
+                          disabled={!selected}
+                          onClick={() =>
+                            setCharacterQuantities((current) => ({
+                              ...current,
+                              [character.id]: clampCombatantQuantity(quantity + 1),
+                            }))
+                          }
+                          className="h-8 w-8 rounded border border-zinc-700 text-sm hover:bg-zinc-800 disabled:opacity-40"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -779,7 +860,7 @@ export default function CombatLabPage() {
               <div className="space-y-2">
                 {filteredMonsters.map((monster) => {
                   const selected = selectedMonsterIds.includes(monster.id);
-                  const quantity = clampMonsterQuantity(monsterQuantities[monster.id] ?? 1);
+                  const quantity = clampCombatantQuantity(monsterQuantities[monster.id] ?? 1);
                   return (
                     <div
                       key={monster.id}
@@ -793,7 +874,7 @@ export default function CombatLabPage() {
                             setSelectedMonsterIds((current) => toggleSelection(current, monster.id));
                             setMonsterQuantities((current) => ({
                               ...current,
-                              [monster.id]: clampMonsterQuantity(current[monster.id] ?? 1),
+                              [monster.id]: clampCombatantQuantity(current[monster.id] ?? 1),
                             }));
                           }}
                         />
@@ -814,7 +895,7 @@ export default function CombatLabPage() {
                           onClick={() =>
                             setMonsterQuantities((current) => ({
                               ...current,
-                              [monster.id]: clampMonsterQuantity(quantity - 1),
+                              [monster.id]: clampCombatantQuantity(quantity - 1),
                             }))
                           }
                           className="h-8 w-8 rounded border border-zinc-700 text-sm hover:bg-zinc-800 disabled:opacity-40"
@@ -830,7 +911,7 @@ export default function CombatLabPage() {
                           onChange={(event) =>
                             setMonsterQuantities((current) => ({
                               ...current,
-                              [monster.id]: clampMonsterQuantity(event.target.value),
+                              [monster.id]: clampCombatantQuantity(event.target.value),
                             }))
                           }
                           className="h-8 w-16 rounded border border-zinc-700 bg-zinc-950 px-2 text-center text-sm disabled:opacity-40"
@@ -841,7 +922,7 @@ export default function CombatLabPage() {
                           onClick={() =>
                             setMonsterQuantities((current) => ({
                               ...current,
-                              [monster.id]: clampMonsterQuantity(quantity + 1),
+                              [monster.id]: clampCombatantQuantity(quantity + 1),
                             }))
                           }
                           className="h-8 w-8 rounded border border-zinc-700 text-sm hover:bg-zinc-800 disabled:opacity-40"
@@ -956,7 +1037,7 @@ export default function CombatLabPage() {
                 {result.selectedCharacters.map((character) => (
                   <div key={character.id} className="mb-3">
                     <div>
-                      {character.name} | level {character.level} | actions {character.actionCount} | {character.id}
+                      {character.name} x{character.quantity} | level {character.level} | actions {character.actionCount} | {character.id}
                     </div>
                     <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-zinc-400">
                       {character.actions.map((action) => (

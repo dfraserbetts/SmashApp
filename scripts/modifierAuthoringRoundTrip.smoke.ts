@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
+import { MonsterBlockCard } from "../app/summoning-circle/components/MonsterBlockCard";
 import {
   createDefaultPowerPacket,
   toEditable,
@@ -194,7 +197,19 @@ recurring.effectPackets[0]!.effectDurationType = "TURNS";
 recurring.effectPackets[0]!.effectDurationTurns = 2;
 recurring.intentions = recurring.effectPackets;
 const recurringText = renderPowerDescriptorLines(recurring).join(" ");
-check(recurringText.includes("max-and-refresh") && recurringText.includes("failed same-source"), "Recurring descriptor covers refresh and failed recurrence.");
+check(!recurringText.includes("max-and-refresh") && !recurringText.includes("failed same-source"), "Recurring descriptor omits internal reapplication mechanics.");
+const recurringMonster = { ...summoningHydrated, powers: [recurring] };
+const livePreviewMarkup = renderToStaticMarkup(createElement(MonsterBlockCard, {
+  monster: recurringMonster,
+}));
+const printModeMarkup = renderToStaticMarkup(createElement(MonsterBlockCard, {
+  monster: recurringMonster,
+  isPrint: true,
+}));
+for (const [surface, markup] of [["live preview", livePreviewMarkup], ["print mode", printModeMarkup]] as const) {
+  check(markup.includes(recurring.name), `${surface} renders the recurring Power fixture.`);
+  check(!markup.includes("max-and-refresh") && !markup.includes("failed same-source"), `${surface} omits the recurring reapplication warning.`);
+}
 
 const linked = semanticPower(2);
 const linkedPacket = {

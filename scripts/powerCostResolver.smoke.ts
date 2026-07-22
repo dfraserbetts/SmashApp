@@ -903,6 +903,24 @@ const physicalBlockPoolDescriptor = renderPowerDescriptorLines(createPower({
   }),
   rangeCategories: ["MELEE"],
 })).join("\n");
+const immediateTimedSelfBlockPoolDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Tough it out",
+  descriptorChassis: "IMMEDIATE",
+  commitmentModifier: "STANDARD",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 5,
+    potency: 4,
+    effectDurationType: "TURNS",
+    effectDurationTurns: 2,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Block",
+      rangeCategory: "SELF",
+    },
+  }),
+})).join("\n");
 const singularPhysicalBlockPoolDescriptor = renderPowerDescriptorLines(createPower({
   name: "Silver Shield",
   packet: createPacket("DEFENCE", {
@@ -1344,6 +1362,10 @@ assert.match(
 assert.match(
   physicalBlockPoolDescriptor,
   /Silver Shield creates a Physical Block Pool with 5 points per success/,
+);
+assert.equal(
+  immediateTimedSelfBlockPoolDescriptor,
+  "Target self. On cast, roll 5 dice. Tough it out creates a Physical Block Pool with 4 points per success for 2 turns.",
 );
 assert.match(
   singularPhysicalBlockPoolDescriptor,

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { buildCombatLabSmokeScenarios, runCombatScenario } from "../lib/combat-lab/autoSimulator";
 import { declareManualAssistPressure, resolveCombatAction, resolveStartOfTurnEffects } from "../lib/combat-lab/actionResolver";
 import {
@@ -3107,6 +3109,16 @@ function monsterPowerRowFromFixture(
     primaryDefenceGate: power.primaryDefenceGate ?? null,
     diceCount: power.diceCount,
     potency: power.potency,
+    meleeTargets: power.meleeTargets ?? null,
+    rangedTargets: power.rangedTargets ?? null,
+    rangedDistanceFeet: power.rangedDistanceFeet ?? null,
+    aoeCenterRangeFeet: power.aoeCenterRangeFeet ?? null,
+    aoeCount: power.aoeCount ?? null,
+    aoeShape: power.aoeShape ?? null,
+    aoeSphereRadiusFeet: power.aoeSphereRadiusFeet ?? null,
+    aoeConeLengthFeet: power.aoeConeLengthFeet ?? null,
+    aoeLineWidthFeet: power.aoeLineWidthFeet ?? null,
+    aoeLineLengthFeet: power.aoeLineLengthFeet ?? null,
     rangeCategories: (power.rangeCategories ?? []).map((rangeCategory) => ({ rangeCategory })),
     effectPackets: power.effectPackets,
     ...overrides,
@@ -3546,6 +3558,96 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   }
   if (!actor.hydration.warnings.some((warning) => /Physical Defence: 3 x D8, blocks 4\/success/i.test(warning))) {
     throw new Error("Monster defence summary was not reported in hydration output.");
+  }
+}
+
+{
+  const baseHowl = makeFixturePower({
+    id: "dire-wolf-howl",
+    name: "Howl",
+    intention: "AUGMENT",
+    diceCount: 3,
+    potency: 1,
+    statTarget: "Attack",
+    durationTurns: 1,
+    cooldownTurns: 1,
+  });
+  const howlPacket = {
+    ...baseHowl.effectPackets[0],
+    id: "dire-wolf-howl-packet",
+    modifier: 3,
+    targetedAttribute: "ATTACK" as const,
+    applyTo: "PRIMARY_TARGET" as const,
+    detailsJson: {
+      ...baseHowl.effectPackets[0]?.detailsJson,
+      statTarget: "Attack",
+      rangeCategory: "RANGED",
+      rangeValue: 30,
+      rangeExtra: { targets: 3 },
+    },
+  };
+  const howlPower = {
+    ...baseHowl,
+    rangeCategories: ["RANGED" as const],
+    rangedTargets: 3,
+    rangedDistanceFeet: 30,
+    effectPackets: [howlPacket],
+    intentions: [howlPacket],
+  };
+  const { actor: direWolf } = adaptMonsterToCombatLabActor(
+    makeMonsterRow({
+      id: "dire-wolf",
+      name: "Dire Wolf",
+      powers: [monsterPowerRowFromFixture(howlPower)],
+    }),
+    new Map(),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  const howl = direWolf.actions.find((candidate) => candidate.name === "Howl");
+  if (!howl || howl.targetPolicy !== "ally" || howl.rangeCategory !== "RANGED" || howl.targetCount !== 3) {
+    throw new Error(`Live Dire Wolf Howl lost its authored three-target breadth: ${JSON.stringify(howl)}.`);
+  }
+
+  const iceWolves = createActorInstances(
+    fixtureActor("ice-wolf", "monsters", { name: "Ice Wolf" }),
+    3,
+  );
+  const state = createCombatState([], [direWolf, ...iceWolves], { captureTranscript: true });
+  const liveDireWolf = state.actors.find((actor) => actor.id === direWolf.id);
+  if (!liveDireWolf) throw new Error("Dire Wolf Howl regression fixture failed to enter combat state.");
+  const liveHowl = chooseTurnAction(liveDireWolf, state, "power");
+  const primaryTarget = liveHowl ? chooseTarget(liveDireWolf, liveHowl, state) : null;
+  if (!liveHowl || liveHowl.name !== "Howl" || !primaryTarget) {
+    throw new Error("Automated Dire Wolf did not choose Howl with a legal primary target.");
+  }
+  resolveCombatAction({
+    state,
+    actor: liveDireWolf,
+    target: primaryTarget,
+    action: liveHowl,
+    rng: rngFrom(Array.from({ length: 20 }, () => 0.6)),
+    lane: "power",
+  });
+  const howlTargets = new Set(
+    state.statusEffects
+      .filter((effect) => effect.sourceActorId === liveDireWolf.id && effect.sourceActionName === "Howl")
+      .map((effect) => effect.targetActorId),
+  );
+  const targetsDireWolf = howlTargets.has(liveDireWolf.id);
+  const iceWolfTargetCount = [...howlTargets].filter((targetId) =>
+    targetId.startsWith("ice-wolf:instance:"),
+  ).length;
+  if (
+    howlTargets.size !== 3 ||
+    (targetsDireWolf ? iceWolfTargetCount !== 2 : iceWolfTargetCount !== 3)
+  ) {
+    throw new Error(`Dire Wolf Howl did not apply to the full authored target breadth: ${JSON.stringify([...howlTargets])}.`);
+  }
+  const declaration = state.transcriptEvents.find(
+    (event) => event.type === "powerAction" && event.actorId === liveDireWolf.id && event.actionName === "Howl",
+  );
+  if (declaration?.details?.targetCount !== 3 || declaration.targetName?.split(", ").length !== 3) {
+    throw new Error(`Dire Wolf Howl declaration did not report three targets: ${JSON.stringify(declaration)}.`);
   }
 }
 
@@ -7481,6 +7583,62 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     instances.some((actor) => actor.baseActorId !== baseMonster.id || actor.displayGroupName !== "Gobbo Scout")
   ) {
     throw new Error("Monster quantity expansion did not create distinguishable runtime instances.");
+  }
+}
+
+{
+  const baseCharacter = fixtureActor("quantity-character", "players", {
+    name: "Campaign Hero",
+    hydration: {
+      source: "campaignCharacter",
+      realData: true,
+      warnings: [],
+      unsupportedEquipment: [],
+      unsupportedTraits: [],
+      ignoredTraits: [],
+      unsupportedCombatTraits: [],
+      fallbackActions: [],
+    },
+  });
+  const instances = createActorInstances(baseCharacter, 3);
+  if (
+    instances.length !== 3 ||
+    new Set(instances.map((actor) => actor.id)).size !== 3 ||
+    instances[0]?.name !== "Campaign Hero #1" ||
+    instances[2]?.instanceIndex !== 3 ||
+    instances.some(
+      (actor) =>
+        actor.side !== "players" ||
+        actor.baseActorId !== baseCharacter.id ||
+        actor.displayGroupName !== "Campaign Hero",
+    )
+  ) {
+    throw new Error("Campaign Character quantity expansion did not create distinguishable player instances.");
+  }
+  instances[0].physicalHpCurrent = 0;
+  if (instances.slice(1).some((actor) => actor.physicalHpCurrent !== actor.physicalHpMax)) {
+    throw new Error("Campaign Character quantity instances did not retain independent health state.");
+  }
+}
+
+{
+  const pageSource = readFileSync("app/combat-lab/page.tsx", "utf8");
+  const routeSource = readFileSync("app/api/combat-lab/run/route.ts", "utf8");
+  if (
+    !pageSource.includes("characterQuantities") ||
+    !pageSource.includes("characters: selectedCharacterIds.map") ||
+    !pageSource.includes("selectedCharacterInstanceCount") ||
+    !pageSource.includes("aria-label={`${character.name} quantity`}")
+  ) {
+    throw new Error("Combat Lab UI does not expose Campaign Character quantity selection and payload wiring.");
+  }
+  if (
+    !routeSource.includes("parseCharacterSelections") ||
+    !routeSource.includes("createActorInstances(entry.actor, entry.quantity)") ||
+    !routeSource.includes("players: characterInstances") ||
+    !routeSource.includes("quantity: entry.quantity")
+  ) {
+    throw new Error("Combat Lab API does not validate, expand, and report Campaign Character quantities.");
   }
 }
 

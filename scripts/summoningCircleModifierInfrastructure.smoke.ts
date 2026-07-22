@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   createDefaultPowerPacket,
   defaultPower,
+  removeSelectedTraitAtIndex,
   toEditable,
   toPayload,
 } from "../app/summoning-circle/components/SummoningCircleEditor";
@@ -38,6 +39,22 @@ const packetIds = deterministicIds("packet-id");
 const firstAddedPacket = createDefaultPowerPacket("ATTACK", 1, packetIds);
 const reAddedPacket = createDefaultPowerPacket("ATTACK", 1, packetIds);
 assert.notEqual(firstAddedPacket.id, reAddedPacket.id, "Removing and re-adding creates a new packet ID.");
+
+assert.deepEqual(
+  removeSelectedTraitAtIndex(
+    [
+      { traitDefinitionId: "trait-a", sortOrder: 0 },
+      { traitDefinitionId: "trait-b", sortOrder: 1 },
+      { traitDefinitionId: "trait-c", sortOrder: 2 },
+    ],
+    1,
+  ),
+  [
+    { traitDefinitionId: "trait-a", sortOrder: 0 },
+    { traitDefinitionId: "trait-c", sortOrder: 1 },
+  ],
+  "Clicking a selected Trait chip removes that trait and restores contiguous sort order.",
+);
 
 const copied = assignSummoningPowerIdentities(created, {
   forceNew: true,
@@ -286,6 +303,18 @@ assert.equal(
 
 const postSource = readFileSync("app/api/summoning-circle/monsters/route.ts", "utf8");
 const putSource = readFileSync("app/api/summoning-circle/monsters/[id]/route.ts", "utf8");
+const editorSource = readFileSync(
+  "app/summoning-circle/components/SummoningCircleEditor.tsx",
+  "utf8",
+);
+const selectedTraitsStart = editorSource.indexOf("Selected Traits");
+const availableTraitsStart = editorSource.indexOf("Helpful Traits", selectedTraitsStart);
+const selectedTraitsSource = editorSource.slice(selectedTraitsStart, availableTraitsStart);
+assert.match(
+  selectedTraitsSource,
+  /<button[\s\S]*onClick=\{\(\) =>[\s\S]*removeSelectedTraitAtIndex\(p\.traits, index\)[\s\S]*aria-label=\{`Remove trait \$\{label\}`\}/,
+  "The full selected Trait chip remains the accessible removal button.",
+);
 assert.match(postSource, /\.\.\.\(power\.id \? \{ id: power\.id \} : \{\}\)/, "POST persists supplied power IDs.");
 assert.match(postSource, /\.\.\.\(effectPacket\.id \? \{ id: effectPacket\.id \} : \{\}\)/, "POST persists supplied packet IDs.");
 assert.doesNotMatch(putSource, /tx\.power\.deleteMany\(\{ where: \{ monsterId: id \} \}\)/, "PUT must not delete every power.");

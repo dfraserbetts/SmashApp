@@ -17,11 +17,17 @@ import { prisma } from "@/prisma/client";
 
 type RunRequestBody = {
   campaignId?: unknown;
+  characters?: unknown;
   characterIds?: unknown;
   monsters?: unknown;
   monsterIds?: unknown;
   runs?: unknown;
   turnOrder?: unknown;
+};
+
+type CharacterSelection = {
+  characterId: string;
+  quantity: number;
 };
 
 type MonsterSelection = {
@@ -55,6 +61,39 @@ function stringList(value: unknown): string[] {
     .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
     .filter(Boolean)
     .slice(0, 20);
+}
+
+function parseCharacterSelections(body: RunRequestBody): { selections: CharacterSelection[]; error?: string } {
+  const merged = new Map<string, number>();
+  if (Array.isArray(body.characters)) {
+    for (const entry of body.characters) {
+      if (!entry || typeof entry !== "object") {
+        return { selections: [], error: "Each character selection must include characterId and quantity" };
+      }
+      const raw = entry as { characterId?: unknown; quantity?: unknown };
+      const characterId = typeof raw.characterId === "string" ? raw.characterId.trim() : "";
+      const quantityValue = typeof raw.quantity === "number" ? raw.quantity : Number(raw.quantity);
+      if (!characterId) return { selections: [], error: "Character selection characterId is required" };
+      if (!Number.isInteger(quantityValue) || quantityValue < 1 || quantityValue > 30) {
+        return { selections: [], error: "Character quantity must be an integer between 1 and 30" };
+      }
+      merged.set(characterId, (merged.get(characterId) ?? 0) + quantityValue);
+    }
+  } else {
+    for (const characterId of stringList(body.characterIds)) {
+      merged.set(characterId, (merged.get(characterId) ?? 0) + 1);
+    }
+  }
+
+  const selections = [...merged.entries()].map(([characterId, quantity]) => ({ characterId, quantity }));
+  if (selections.some((selection) => selection.quantity > 30)) {
+    return { selections: [], error: "Character quantity must be between 1 and 30 per character" };
+  }
+  const totalInstances = selections.reduce((sum, selection) => sum + selection.quantity, 0);
+  if (totalInstances > 50) {
+    return { selections: [], error: "Total character instances cannot exceed 50" };
+  }
+  return { selections };
 }
 
 function parseMonsterSelections(body: RunRequestBody): { selections: MonsterSelection[]; error?: string } {
@@ -109,18 +148,19 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as RunRequestBody;
     const campaignId = typeof body.campaignId === "string" ? body.campaignId.trim() : "";
-    const characterIds = stringList(body.characterIds);
+    const { selections: characterSelections, error: characterSelectionError } = parseCharacterSelections(body);
+    const characterIds = characterSelections.map((selection) => selection.characterId);
     const { selections: monsterSelections, error: monsterSelectionError } = parseMonsterSelections(body);
     const monsterIds = monsterSelections.map((selection) => selection.monsterId);
     const runs = runCount(body.runs);
     const selectedTurnOrder = turnOrder(body.turnOrder);
 
-    if (monsterSelectionError) {
-      return NextResponse.json({ error: monsterSelectionError }, { status: 400 });
+    if (characterSelectionError || monsterSelectionError) {
+      return NextResponse.json({ error: characterSelectionError ?? monsterSelectionError }, { status: 400 });
     }
-    if (!campaignId || characterIds.length === 0 || monsterSelections.length === 0) {
+    if (!campaignId || characterSelections.length === 0 || monsterSelections.length === 0) {
       return NextResponse.json(
-        { error: "campaignId, characterIds, and monsters are required" },
+        { error: "campaignId, characters, and monsters are required" },
         { status: 400 },
       );
     }
@@ -208,14 +248,22 @@ export async function POST(req: Request) {
       );
     }
 
-    const adaptedCharacters = characters.map((character) =>
-      adaptCampaignCharacterToCombatActor(
-        character,
-        protectionTuning,
-        powerTuning,
-        characterBuilderTuning.playerPowerSpendScalar,
-      ),
+    const adaptedCharacterById = new Map(
+      characters.map((character) => [
+        character.id,
+        adaptCampaignCharacterToCombatActor(
+          character,
+          protectionTuning,
+          powerTuning,
+          characterBuilderTuning.playerPowerSpendScalar,
+        ),
+      ]),
     );
+    const adaptedCharacters = characterSelections.map((selection) => {
+      const character = adaptedCharacterById.get(selection.characterId);
+      if (!character) throw new Error("SELECTED_CHARACTER_NOT_FOUND");
+      return { ...character, quantity: selection.quantity };
+    });
     const monsterById = new Map(monsters.map((monster) => [monster.id, monster]));
     const adaptedMonsters = monsterSelections.map((selection) => {
       const monster = monsterById.get(selection.monsterId);
@@ -225,10 +273,11 @@ export async function POST(req: Request) {
         quantity: selection.quantity,
       };
     });
+    const characterInstances = adaptedCharacters.flatMap((entry) => createActorInstances(entry.actor, entry.quantity));
     const monsterInstances = adaptedMonsters.flatMap((entry) => createActorInstances(entry.actor, entry.quantity));
     const report = runScenarioSuite({
       name: `${campaign.name}: selected campaign combatants`,
-      players: adaptedCharacters.map((entry) => entry.actor),
+      players: characterInstances,
       monsters: monsterInstances,
       runs,
       seed: Date.now() % 100000,
@@ -242,6 +291,7 @@ export async function POST(req: Request) {
         id: entry.actor.id,
         name: entry.actor.name,
         level: entry.actor.level,
+        quantity: entry.quantity,
         actionCount: entry.actor.actions.length,
         actions: entry.actor.actions.map((action) => ({
           id: action.id,
@@ -342,7 +392,7 @@ export async function POST(req: Request) {
     if (message === "FORBIDDEN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    if (message === "SELECTED_MONSTER_NOT_FOUND") {
+    if (message === "SELECTED_CHARACTER_NOT_FOUND" || message === "SELECTED_MONSTER_NOT_FOUND") {
       return NextResponse.json(
         { error: "One or more selected combatants were not found in this campaign" },
         { status: 404 },

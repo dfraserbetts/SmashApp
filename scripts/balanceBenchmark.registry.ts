@@ -465,7 +465,12 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     deterministicSeeds: [],
     mutationSafety: syntheticReadOnly,
     timeoutMs: 180_000,
-    changedPathPatterns: ["scripts/combatLab.smoke.ts", ...combatLabDependencyPatterns],
+    changedPathPatterns: [
+      "scripts/combatLab.smoke.ts",
+      "app/combat-lab/page.tsx",
+      "app/api/combat-lab/run/route.ts",
+      ...combatLabDependencyPatterns,
+    ],
     failureSeverity: "REGRESSION",
     supportsJson: false,
     baselinePolicy: selfAsserting("The script owns deterministic runtime invariants."),

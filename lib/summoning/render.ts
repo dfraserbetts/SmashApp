@@ -1270,6 +1270,10 @@ function renderRepeatingDirectEffectSuffix(
   return `at the start of their next ${formatCountedUnit(effectPacket.effectDurationTurns, "turn")}`;
 }
 
+function isRepeatingDirectEffectIntention(intention: EffectPacket["intention"]): boolean {
+  return intention === "ATTACK" || intention === "HEALING";
+}
+
 function renderImmediateTargetTurnCadenceSuffix(
   effectPacket: Pick<EffectPacket, "effectDurationType" | "effectDurationTurns"> | null | undefined,
   isMultiTarget: boolean,
@@ -2040,11 +2044,7 @@ function isRepeatingDirectImmediateSecondary(params: {
     power.commitmentModifier === "STANDARD" &&
     (effectPacket.effectTimingType ?? "ON_CAST") === "ON_CAST" &&
     (effectPacket.effectDurationType ?? "INSTANT") === "TURNS" &&
-    (
-      effectPacket.intention === "ATTACK" ||
-      effectPacket.intention === "HEALING" ||
-      effectPacket.intention === "DEFENCE"
-    )
+    isRepeatingDirectEffectIntention(effectPacket.intention)
   );
 }
 
@@ -2650,11 +2650,7 @@ export function renderPowerDescriptorLines(
     power.commitmentModifier === "STANDARD" &&
     primaryPacket &&
     (primaryPacket.effectTimingType ?? "ON_CAST") === "ON_CAST" &&
-    (
-      primaryPacket.intention === "ATTACK" ||
-      primaryPacket.intention === "HEALING" ||
-      primaryPacket.intention === "DEFENCE"
-    )
+    isRepeatingDirectEffectIntention(primaryPacket.intention)
       ? renderImmediateTargetTurnCadenceSuffix(primaryPacket, isMultiTarget)
       : null;
   const primaryDefenceCheck =
@@ -3359,21 +3355,6 @@ export function renderPowerDescriptorLines(
       ...groupedSecondaryOngoingDamageCleanupLines,
     ]),
   );
-  const hasRecurringSemanticModifier = effectPackets.some((packet) =>
-    packet.modifier != null &&
-    (packet.intention === "AUGMENT" || packet.intention === "DEBUFF") &&
-    (
-      packet.effectTimingType === "START_OF_TURN" ||
-      packet.effectTimingType === "END_OF_TURN" ||
-      packet.effectTimingType === "START_OF_TURN_WHILST_CHANNELLED" ||
-      packet.effectTimingType === "END_OF_TURN_WHILST_CHANNELLED"
-    ),
-  );
-  if (hasRecurringSemanticModifier) {
-    lines.push(
-      "Recurring application uses max-and-refresh: keep the higher stack count and refresh its duration. A failed same-source reapplication leaves the existing status in place.",
-    );
-  }
   return lines;
 }
 

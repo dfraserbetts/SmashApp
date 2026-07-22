@@ -203,22 +203,44 @@ function targetPolicyForAction(kind: CombatAction["kind"], packet: EffectPacket)
   return "enemy";
 }
 
-function rangeCategoryForPower(power: Power): CombatAction["rangeCategory"] {
+function rangeCategoryForPower(power: Power, packet: EffectPacket): CombatAction["rangeCategory"] {
+  const local = packet.localTargetingOverride;
+  if (
+    local?.aoeCount != null ||
+    local?.aoeShape != null ||
+    local?.aoeSphereRadiusFeet != null ||
+    local?.aoeConeLengthFeet != null ||
+    local?.aoeLineWidthFeet != null ||
+    local?.aoeLineLengthFeet != null
+  ) return "AOE";
+  if (local?.rangedTargets != null || local?.rangedDistanceFeet != null) return "RANGED";
+  if (local?.meleeTargets != null) return "MELEE";
+  const packetRangeCategory = asString(asRecord(packet.detailsJson).rangeCategory).toUpperCase();
   return power.rangeCategories?.includes("AOE")
     ? "AOE"
     : power.rangeCategories?.includes("RANGED")
       ? "RANGED"
       : power.rangeCategories?.includes("MELEE")
         ? "MELEE"
-        : null;
+        : packetRangeCategory === "AOE" || packetRangeCategory === "RANGED" || packetRangeCategory === "MELEE"
+          ? packetRangeCategory
+          : null;
 }
 
-function targetCountForPower(power: Power): number {
-  return power.rangeCategories?.includes("AOE")
-    ? Math.max(1, asInt(power.aoeCount, power.aoeSphereRadiusFeet === 10 ? 4 : 4))
-    : power.rangeCategories?.includes("RANGED")
-      ? Math.max(1, asInt(power.rangedTargets, 1))
-      : Math.max(1, asInt(power.meleeTargets, 1));
+function targetCountForPower(
+  power: Power,
+  packet: EffectPacket,
+  rangeCategory: CombatAction["rangeCategory"],
+): number {
+  const details = asRecord(packet.detailsJson);
+  const applyTo = packet.applyTo ?? asString(details.applyTo).toUpperCase();
+  if (applyTo === "SELF") return 1;
+  const local = packet.localTargetingOverride;
+  return rangeCategory === "AOE"
+    ? Math.max(1, asInt(local?.aoeCount ?? power.aoeCount, 4))
+    : rangeCategory === "RANGED"
+      ? Math.max(1, asInt(local?.rangedTargets ?? power.rangedTargets, 1))
+      : Math.max(1, asInt(local?.meleeTargets ?? power.meleeTargets, 1));
 }
 
 function damageApplicationTimingForPacket(
@@ -538,8 +560,8 @@ export function adaptPowerToCombatActions(
         ? Math.max(1, effectiveAttackWoundsPerSuccess(packet) ?? rawPotency)
         : rawPotency;
     const diceCount = asInt(packet.diceCount ?? power.diceCount, 1);
-    const rangeCategory = rangeCategoryForPower(power);
-    const targetCount = targetCountForPower(power);
+    const rangeCategory = rangeCategoryForPower(power, packet);
+    const targetCount = targetCountForPower(power, packet, rangeCategory);
     const durationRounds = Math.max(1, asInt(packet.effectDurationTurns, 1));
     const structuralDurationRounds =
       power.descriptorChassis === "FIELD"

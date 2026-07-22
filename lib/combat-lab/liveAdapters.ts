@@ -128,6 +128,16 @@ type MonsterPowerRow = {
   primaryDefenceGate?: Power["primaryDefenceGate"] | null;
   diceCount?: unknown;
   potency?: unknown;
+  meleeTargets?: number | null;
+  rangedTargets?: number | null;
+  rangedDistanceFeet?: number | null;
+  aoeCenterRangeFeet?: number | null;
+  aoeCount?: number | null;
+  aoeShape?: "SPHERE" | "CONE" | "LINE" | null;
+  aoeSphereRadiusFeet?: number | null;
+  aoeConeLengthFeet?: number | null;
+  aoeLineWidthFeet?: number | null;
+  aoeLineLengthFeet?: number | null;
   rangeCategories?: RawRangeCategory[];
   effectPackets?: unknown[];
 };
@@ -206,6 +216,12 @@ function asRecord(value: unknown): Record<string, unknown> {
 function asNumber(value: unknown, fallback = 0): number {
   const numeric = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function nullableInteger(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? Math.trunc(numeric) : null;
 }
 
 function positiveModifier(value: unknown): number {
@@ -467,6 +483,8 @@ function mapPower(power: MonsterPowerRow): Power {
   const effectPackets = Array.isArray(power.effectPackets)
     ? power.effectPackets.map((packet, index): EffectPacket => {
         const raw = asRecord(packet);
+        const rawLocalTargeting = raw.localTargetingOverride;
+        const localTargeting = asRecord(rawLocalTargeting);
         const intention = String(raw.intention ?? raw.type ?? "ATTACK");
         const normalizedIntention =
           intention === "DEFENCE" ||
@@ -533,7 +551,26 @@ function mapPower(power: MonsterPowerRow): Power {
           triggerConditionText:
             typeof raw.triggerConditionText === "string" ? raw.triggerConditionText : null,
           detailsJson: asRecord(raw.detailsJson),
-          localTargetingOverride: null,
+          localTargetingOverride:
+            rawLocalTargeting && typeof rawLocalTargeting === "object" && !Array.isArray(rawLocalTargeting)
+              ? {
+                  meleeTargets: nullableInteger(localTargeting.meleeTargets),
+                  rangedTargets: nullableInteger(localTargeting.rangedTargets),
+                  rangedDistanceFeet: nullableInteger(localTargeting.rangedDistanceFeet),
+                  aoeCenterRangeFeet: nullableInteger(localTargeting.aoeCenterRangeFeet),
+                  aoeCount: nullableInteger(localTargeting.aoeCount),
+                  aoeShape:
+                    localTargeting.aoeShape === "SPHERE" ||
+                    localTargeting.aoeShape === "CONE" ||
+                    localTargeting.aoeShape === "LINE"
+                      ? localTargeting.aoeShape
+                      : null,
+                  aoeSphereRadiusFeet: nullableInteger(localTargeting.aoeSphereRadiusFeet),
+                  aoeConeLengthFeet: nullableInteger(localTargeting.aoeConeLengthFeet),
+                  aoeLineWidthFeet: nullableInteger(localTargeting.aoeLineWidthFeet),
+                  aoeLineLengthFeet: nullableInteger(localTargeting.aoeLineLengthFeet),
+                }
+              : null,
         };
       })
     : [];
@@ -550,6 +587,16 @@ function mapPower(power: MonsterPowerRow): Power {
     cooldownReduction: power.cooldownReduction,
     primaryDefenceGate: power.primaryDefenceGate ?? null,
     rangeCategories,
+    meleeTargets: power.meleeTargets ?? null,
+    rangedTargets: power.rangedTargets ?? null,
+    rangedDistanceFeet: power.rangedDistanceFeet ?? null,
+    aoeCenterRangeFeet: power.aoeCenterRangeFeet ?? null,
+    aoeCount: power.aoeCount ?? null,
+    aoeShape: power.aoeShape ?? null,
+    aoeSphereRadiusFeet: power.aoeSphereRadiusFeet ?? null,
+    aoeConeLengthFeet: power.aoeConeLengthFeet ?? null,
+    aoeLineWidthFeet: power.aoeLineWidthFeet ?? null,
+    aoeLineLengthFeet: power.aoeLineLengthFeet ?? null,
     effectPackets,
     intentions: effectPackets,
     diceCount: Number(power.diceCount ?? effectPackets[0]?.diceCount ?? 1),

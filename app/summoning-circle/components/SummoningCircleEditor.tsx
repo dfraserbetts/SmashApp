@@ -4224,6 +4224,15 @@ function HoverTooltipLabel({
   );
 }
 
+export function removeSelectedTraitAtIndex<T extends { sortOrder: number }>(
+  traits: readonly T[],
+  removeIndex: number,
+): T[] {
+  return traits
+    .filter((_, index) => index !== removeIndex)
+    .map((trait, index) => ({ ...trait, sortOrder: index }));
+}
+
 export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }: Props) {
   const searchParams = useSearchParams();
   const monsterIdFromUrl = searchParams.get("monsterId");
@@ -8857,34 +8866,27 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                   const effect = trait.effectText ?? resolved?.effectText ?? "No description";
                   const renderedEffect = renderTraitEffectText(effect);
                   return (
-                    <span
+                    <button
                       key={`${trait.traitDefinitionId}-${index}`}
+                      type="button"
                       title={renderedEffect}
-                      className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                      disabled={readOnly}
+                      onClick={() =>
+                        setEditor((p) =>
+                          p
+                            ? {
+                                ...p,
+                                traits: removeSelectedTraitAtIndex(p.traits, index),
+                              }
+                            : p,
+                        )
+                      }
+                      className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-default disabled:opacity-60"
+                      aria-label={`Remove trait ${label}`}
                     >
                       {label}
-                      {!readOnly && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditor((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    traits: p.traits
-                                      .filter((_, idx) => idx !== index)
-                                      .map((entry, idx) => ({ ...entry, sortOrder: idx })),
-                                  }
-                                : p,
-                            )
-                          }
-                          className="text-zinc-400 hover:text-zinc-200"
-                          aria-label={`Remove trait ${label}`}
-                        >
-                          x
-                        </button>
-                      )}
-                    </span>
+                      {!readOnly && <span className="text-zinc-400" aria-hidden="true">x</span>}
+                    </button>
                   );
                 })}
               </div>
