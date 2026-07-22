@@ -3423,6 +3423,8 @@ function resolveSingleTargetAction(params: {
   primaryAppliedSuccesses?: number;
   linkedPrimaryContext?: LinkedPrimaryContext;
   sourceSuccessesOverride?: number | null;
+  sharedSourceSuccessesOverride?: number | null;
+  captureSourceSuccesses?: (successes: number) => void;
 }): CombatResolutionMetrics {
   const { state, actor, action, target, rng, lane } = params;
   const gateAlreadyResolved = Boolean(params.gateAlreadyResolved || params.fromSecondary);
@@ -3430,13 +3432,14 @@ function resolveSingleTargetAction(params: {
   let linkedWoundBandContext: LinkedPrimaryContext | null = null;
   const accuracyAttribute = effectiveAccuracyAttribute(actor, target, action);
   const actorAttributeModifier = getAttributeModifier(state, actor.id, accuracyAttribute);
-  if (actorAttributeModifier > 0) metrics.buffedActions = 1;
-  if (actorAttributeModifier < 0) metrics.debuffedActions = 1;
   const inheritedPrimaryAppliedSuccesses = Math.max(0, Math.trunc(params.primaryAppliedSuccesses ?? 0));
   const skipOwnRoll = Boolean(params.fromSecondary && (action.skipOwnRoll || action.usesPrimaryAppliedSuccesses));
   const hasSourceSuccessesOverride =
     typeof params.sourceSuccessesOverride === "number" &&
     Number.isFinite(params.sourceSuccessesOverride);
+  const hasSharedSourceSuccessesOverride =
+    typeof params.sharedSourceSuccessesOverride === "number" &&
+    Number.isFinite(params.sharedSourceSuccessesOverride);
   const poolForCounterDeclaration = action.pool ?? "physical";
   const currentAssistTriggerId = assistTriggerId({ state, triggeringAlly: actor, triggeringAction: action, targetActor: target });
   const counterDeclaration =
@@ -3449,17 +3452,23 @@ function resolveSingleTargetAction(params: {
   addMetrics(metrics, counterDeclaration.metrics);
   const counterRoll = rollDeclaredCounter(state, target, actor, counterDeclaration.declared, rng);
   const diceCount = Math.max(0, action.diceCount);
-  const roll = skipOwnRoll || hasSourceSuccessesOverride
+  const roll = skipOwnRoll || hasSourceSuccessesOverride || hasSharedSourceSuccessesOverride
     ? null
     : rollDice(diceCount, getActorDie(actor, accuracyAttribute), rng, actorAttributeModifier);
+  if (roll && actorAttributeModifier > 0) metrics.buffedActions = 1;
+  if (roll && actorAttributeModifier < 0) metrics.debuffedActions = 1;
   const rollSummary = roll
     ? summarizeRoll({ actor, reason: action.name, attribute: accuracyAttribute, roll })
     : null;
-  metrics.rawSuccesses = hasSourceSuccessesOverride
+  const sourceSuccesses = hasSharedSourceSuccessesOverride
+    ? Math.max(0, Math.trunc(params.sharedSourceSuccessesOverride ?? 0))
+    : hasSourceSuccessesOverride
     ? Math.max(0, Math.trunc(params.sourceSuccessesOverride ?? 0))
     : skipOwnRoll
       ? inheritedPrimaryAppliedSuccesses
       : (roll?.successes ?? 0);
+  metrics.rawSuccesses = hasSharedSourceSuccessesOverride ? 0 : sourceSuccesses;
+  params.captureSourceSuccesses?.(sourceSuccesses);
   if (roll && rollSummary) {
     emitTranscriptEvent(state, {
       type: rollEventType(action),
@@ -3498,7 +3507,7 @@ function resolveSingleTargetAction(params: {
           attacker: actor,
           counterRoll,
           incomingAction: action,
-          incomingSuccesses: metrics.rawSuccesses,
+          incomingSuccesses: sourceSuccesses,
           pool: poolForCounterDeclaration,
         })
       : emptyResolution();
@@ -3537,7 +3546,7 @@ function resolveSingleTargetAction(params: {
     (action.kind === "attack" || action.kind === "debuff" || action.kind === "control" || action.kind === "movement") &&
     !counterDeclaration.declared
   ) {
-    const resistMetrics = resolveResist(state, target, action, metrics.rawSuccesses, rng, currentAssistTriggerId);
+    const resistMetrics = resolveResist(state, target, action, sourceSuccesses, rng, currentAssistTriggerId);
     addMetrics(metrics, resistMetrics);
   }
 
@@ -3548,7 +3557,7 @@ function resolveSingleTargetAction(params: {
         ? counterGateMetrics.hostileSuccessesAfterResist
       : !gateAlreadyResolved && action.resistAttribute && !counterDeclaration.declared
         ? metrics.hostileSuccessesAfterResist
-        : metrics.rawSuccesses;
+        : sourceSuccesses;
 
   if (!params.fromSecondary) {
     emitTranscriptEvent(state, {
@@ -4085,7 +4094,7 @@ function resolveSingleTargetAction(params: {
           actionId: action.id,
           actionName: action.name,
           lane,
-          message: `${action.kind === "buff" ? "Augment" : "Debuff"}: ${activeAppliedSuccesses} applied successes x ${action.potency} Potency = ${stackCount} new stacks; same-source state ${existing ? "refreshes" : "starts"} at ${nextStacks} stacks with ${action.kind === "buff" ? "+" : "-"}${modifierMagnitude} ${action.modifier.attribute}.`,
+          message: `${action.kind === "buff" ? "Augment" : "Debuff"} ${target.name}: ${activeAppliedSuccesses} applied successes x ${action.potency} Potency = ${stackCount} new stacks; same-source state ${existing ? "refreshes" : "starts"} at ${nextStacks} stacks with ${action.kind === "buff" ? "+" : "-"}${modifierMagnitude} ${action.modifier.attribute}.`,
           details: {
             semanticFormat: "augmentDebuffThreeFieldV1",
             statusId,
@@ -4714,8 +4723,9 @@ export function resolveCombatAction(params: {
     metrics.aoeActualTargets += targets.length;
     metrics.positionalAbstractionsUsed += 1;
   }
-  for (const resolvedTarget of targets) {
-    addMetrics(metrics, resolveSingleTargetAction({
+  let sharedSourceSuccesses: number | null = null;
+  for (const [targetIndex, resolvedTarget] of targets.entries()) {
+    const targetMetrics = resolveSingleTargetAction({
       state,
       actor,
       action,
@@ -4723,7 +4733,16 @@ export function resolveCombatAction(params: {
       rng,
       lane,
       sourceSuccessesOverride: semanticPassiveSourceSuccesses,
-    }));
+      sharedSourceSuccessesOverride:
+        !semanticPassive && targetIndex > 0 ? sharedSourceSuccesses : null,
+      captureSourceSuccesses:
+        !semanticPassive && targetIndex === 0 && targets.length > 1
+          ? (successes) => {
+              sharedSourceSuccesses = successes;
+            }
+          : undefined,
+    });
+    addMetrics(metrics, targetMetrics);
   }
   if (semanticPassive && lane === "power" && action.sourcePowerId) {
     const siblingActions = actor.actions.filter(

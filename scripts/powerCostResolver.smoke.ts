@@ -2098,6 +2098,53 @@ assert.ok(
   ) > 0,
 );
 
+const defenceParent = createPacket("DEFENCE", {
+  id: "linked-defence-parent",
+  hostility: "NON_HOSTILE",
+  diceCount: 2,
+  potency: 3,
+  effectDurationType: "PASSIVE",
+  applyTo: "SELF",
+  detailsJson: { attackMode: "PHYSICAL", defenceMode: "Block" },
+});
+const linkedToDefence = semanticModifierPacket({
+  id: "linked-to-defence",
+  packetIndex: 1,
+  dependencyMode: "LINKED_TO_PRIMARY",
+  attribute: "GUARD",
+  modifier: 1,
+  potency: 3,
+  durationTurns: 1,
+  applyTo: "SELF",
+});
+const linkedDefenceResult = resolvePowerCost(
+  createPower({
+    name: "Linked to non-hostile Defence",
+    packet: defenceParent,
+    packets: [defenceParent, linkedToDefence],
+    primaryDefenceGate: {
+      sourcePacketIndex: 0,
+      gateResult: "NONE",
+      protectionChannel: null,
+      resistAttribute: null,
+      hostileEntryPattern: null,
+      resolutionSource: "INFERRED",
+    },
+  }),
+  activeFixtureTuning,
+  { level: 3, tier: "ELITE" },
+);
+assert.equal(
+  linkedDefenceResult.packetCosts[1]?.debug.economicPath,
+  "NEW_FORMAT_AUGMENT_DEBUFF_SEMANTIC",
+);
+assert.ok(
+  Number(
+    (linkedDefenceResult.debug.augmentDebuffCalibration as Record<string, unknown>)
+      .aggregateDeliveryUnits,
+  ) > 0,
+);
+
 assert.throws(
   () =>
     resolvePowerCost(

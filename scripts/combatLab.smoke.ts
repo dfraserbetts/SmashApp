@@ -3620,19 +3620,20 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (!liveHowl || liveHowl.name !== "Howl" || !primaryTarget) {
     throw new Error("Automated Dire Wolf did not choose Howl with a legal primary target.");
   }
-  resolveCombatAction({
+  const howlRngValues = [0.99, 0.51, 0.1, 0, 0, 0, 0, 0, 0];
+  let howlRngCalls = 0;
+  const howlResolution = resolveCombatAction({
     state,
     actor: liveDireWolf,
     target: primaryTarget,
     action: liveHowl,
-    rng: rngFrom(Array.from({ length: 20 }, () => 0.6)),
+    rng: () => howlRngValues[howlRngCalls++] ?? 0,
     lane: "power",
   });
-  const howlTargets = new Set(
-    state.statusEffects
-      .filter((effect) => effect.sourceActorId === liveDireWolf.id && effect.sourceActionName === "Howl")
-      .map((effect) => effect.targetActorId),
+  const howlEffects = state.statusEffects.filter(
+    (effect) => effect.sourceActorId === liveDireWolf.id && effect.sourceActionName === "Howl",
   );
+  const howlTargets = new Set(howlEffects.map((effect) => effect.targetActorId));
   const targetsDireWolf = howlTargets.has(liveDireWolf.id);
   const iceWolfTargetCount = [...howlTargets].filter((targetId) =>
     targetId.startsWith("ice-wolf:instance:"),
@@ -3642,6 +3643,35 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     (targetsDireWolf ? iceWolfTargetCount !== 2 : iceWolfTargetCount !== 3)
   ) {
     throw new Error(`Dire Wolf Howl did not apply to the full authored target breadth: ${JSON.stringify([...howlTargets])}.`);
+  }
+  const howlRollEvents = state.transcriptEvents.filter(
+    (event) => event.type === "buffRoll" && event.actorId === liveDireWolf.id && event.actionName === "Howl",
+  );
+  const howlApplicationEvents = state.transcriptEvents.filter(
+    (event) => event.type === "buffApplied" && event.actorId === liveDireWolf.id && event.actionName === "Howl",
+  );
+  const sharedHowlSuccesses = howlRollEvents[0]?.roll?.successes ?? 0;
+  if (
+    howlRngCalls !== 3 ||
+    howlRollEvents.length !== 1 ||
+    howlApplicationEvents.length !== 3 ||
+    howlApplicationEvents.some(
+      (event) => !event.targetName || !event.message.startsWith(`Augment ${event.targetName}:`),
+    ) ||
+    sharedHowlSuccesses <= 0 ||
+    howlResolution.rawSuccesses !== sharedHowlSuccesses ||
+    howlEffects.some((effect) => effect.stackCount !== sharedHowlSuccesses)
+  ) {
+    throw new Error(
+      `Dire Wolf Howl did not share one source roll across all targets: ${JSON.stringify({
+        rngCalls: howlRngCalls,
+        rollEvents: howlRollEvents.length,
+        applications: howlApplicationEvents.map((event) => ({ target: event.targetName, message: event.message })),
+        sharedSuccesses: sharedHowlSuccesses,
+        rawSuccesses: howlResolution.rawSuccesses,
+        stacks: howlEffects.map((effect) => effect.stackCount),
+      })}.`,
+    );
   }
   const declaration = state.transcriptEvents.find(
     (event) => event.type === "powerAction" && event.actorId === liveDireWolf.id && event.actionName === "Howl",
@@ -5377,6 +5407,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   });
   const primary = {
     ...base.effectPackets[0],
+    id: "iron-skin-primary",
     intention: "DEFENCE" as const,
     type: "DEFENCE" as const,
     applyTo: "SELF" as const,
@@ -5399,6 +5430,71 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     effectDurationTurns: null,
     detailsJson: { statTarget: "Guard" },
   };
+  const semanticLinkedGuard = {
+    ...linkedGuard,
+    id: "iron-skin-semantic-guard",
+    modifier: 1,
+    secondaryDependencyMode: "LINKED_TO_PRIMARY" as const,
+    effectDurationType: "TURNS" as const,
+    effectDurationTurns: 1,
+  };
+  const semanticIndependentGuard = {
+    ...semanticLinkedGuard,
+    id: "iron-skin-semantic-independent-guard",
+    secondaryDependencyMode: "INDEPENDENT" as const,
+  };
+  const liveIndependentIronSkinPower = {
+    ...base,
+    effectPackets: [primary, semanticIndependentGuard],
+    intentions: [primary, semanticIndependentGuard],
+  };
+  const { actor: liveIndependentIronSkinWolf } = adaptMonsterToCombatLabActor(
+    makeMonsterRow({
+      id: "wolf-berzerker-live-independent-iron-skin",
+      name: "Wolf Berzerker",
+      powers: [monsterPowerRowFromFixture(liveIndependentIronSkinPower)],
+    }),
+    new Map(),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  const liveIndependentIronSkin = liveIndependentIronSkinWolf.actions.find(
+    (candidate) => candidate.name === "Iron Skin",
+  );
+  if (
+    !liveIndependentIronSkin ||
+    liveIndependentIronSkin.secondaryActions?.[0]?.secondaryDependencyMode !== "INDEPENDENT" ||
+    liveIndependentIronSkin.secondaryActions[0].usesPrimaryAppliedSuccesses === true ||
+    liveIndependentIronSkin.secondaryActions[0].skipOwnRoll === true
+  ) {
+    throw new Error(
+      `Live Iron Skin hydration did not preserve its independent Defence-to-Augment dependency: ${JSON.stringify(liveIndependentIronSkin)}.`,
+    );
+  }
+  const liveIronSkinPower = {
+    ...base,
+    effectPackets: [primary, semanticLinkedGuard],
+    intentions: [primary, semanticLinkedGuard],
+  };
+  const { actor: liveIronSkinWolf } = adaptMonsterToCombatLabActor(
+    makeMonsterRow({
+      id: "wolf-berzerker-live-iron-skin",
+      name: "Wolf Berzerker",
+      powers: [monsterPowerRowFromFixture(liveIronSkinPower)],
+    }),
+    new Map(),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  const liveIronSkin = liveIronSkinWolf.actions.find((candidate) => candidate.name === "Iron Skin");
+  if (
+    !liveIronSkin ||
+    liveIronSkin.secondaryActions?.[0]?.secondaryDependencyMode !== "LINKED_TO_PRIMARY" ||
+    liveIronSkin.secondaryActions[0].usesPrimaryAppliedSuccesses !== true ||
+    liveIronSkin.secondaryActions[0].skipOwnRoll !== true
+  ) {
+    throw new Error(
+      `Live Iron Skin hydration did not preserve its linked Defence-to-Augment dependency: ${JSON.stringify(liveIronSkin)}.`,
+    );
+  }
   const adapted = adaptPowerToCombatActions({
     ...base,
     effectPackets: [primary, linkedGuard],

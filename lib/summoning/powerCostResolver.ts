@@ -3389,6 +3389,16 @@ function resolveNewFormatModifierEconomics(
         if (primaryIntention === "AUGMENT") {
           inheritedAppliedSuccessDistribution = primarySourceDistribution;
         } else if (
+          primaryIntention === "DEFENCE" &&
+          primaryPacket.hostility !== "HOSTILE" &&
+          (
+            !power.primaryDefenceGate ||
+            power.primaryDefenceGate.sourcePacketIndex !== 0 ||
+            power.primaryDefenceGate.gateResult === "NONE"
+          )
+        ) {
+          inheritedAppliedSuccessDistribution = primarySourceDistribution;
+        } else if (
           primaryIntention === "DEBUFF" &&
           power.primaryDefenceGate?.sourcePacketIndex === 0 &&
           power.primaryDefenceGate.gateResult === "RESIST" &&

@@ -548,6 +548,13 @@ function mapPower(power: MonsterPowerRow): Power {
           applicationModeKey: typeof raw.applicationModeKey === "string" ? raw.applicationModeKey : null,
           resolutionOrigin: "CASTER",
           applyTo: raw.applyTo === "ALLIES" || raw.applyTo === "SELF" ? raw.applyTo : "PRIMARY_TARGET",
+          secondaryDependencyMode:
+            raw.secondaryDependencyMode === "INDEPENDENT" ||
+            raw.secondaryDependencyMode === "LINKED_TO_PRIMARY" ||
+            raw.secondaryDependencyMode === "DEPENDENT_SEQUENTIAL" ||
+            raw.secondaryDependencyMode === "TRIGGERED_CONDITIONAL"
+              ? raw.secondaryDependencyMode
+              : null,
           triggerConditionText:
             typeof raw.triggerConditionText === "string" ? raw.triggerConditionText : null,
           detailsJson: asRecord(raw.detailsJson),
